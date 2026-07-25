@@ -1,372 +1,323 @@
-<p align="center">
-    <!-- community badges -->
-    <a href="https://discord.gg/uMbNqcraFc"><img src="https://img.shields.io/badge/Join-Discord-blue.svg"/></a>
-    <!-- doc badges -->
-    <a href='https://plenoptix-nerfstudio.readthedocs-hosted.com/en/latest/?badge=latest'>
-        <img src='https://readthedocs.com/projects/plenoptix-nerfstudio/badge/?version=latest' alt='Documentation Status' />
-    </a>
-    <!-- pi package badge -->
-    <a href="https://badge.fury.io/py/nerfstudio"><img src="https://badge.fury.io/py/nerfstudio.svg" alt="PyPI version"></a>
-    <!-- code check badges -->
-    <a href='https://github.com/nerfstudio-project/nerfstudio/actions/workflows/core_code_checks.yml'>
-        <img src='https://github.com/nerfstudio-project/nerfstudio/actions/workflows/core_code_checks.yml/badge.svg' alt='Test Status' />
-    </a>
-    <a href='https://github.com/nerfstudio-project/nerfstudio/actions/workflows/viewer_build_deploy.yml'>
-        <img src='https://github.com/nerfstudio-project/nerfstudio/actions/workflows/viewer_build_deploy.yml/badge.svg' alt='Viewer build Status' />
-    </a>
-    <!-- license badge -->
-    <a href="https://github.com/nerfstudio-project/nerfstudio/blob/master/LICENSE">
-        <img alt="License" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg">
-    </a>
-</p>
+# nerfstudio-HDR — How it works?
 
-<p align="center">
-    <!-- pypi-strip -->
-    <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://docs.nerf.studio/en/latest/_images/logo-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://docs.nerf.studio/en/latest/_images/logo.png">
-    <!-- /pypi-strip -->
-    <img alt="nerfstudio" src="https://docs.nerf.studio/en/latest/_images/logo.png" width="400">
-    <!-- pypi-strip -->
-    </picture>
-    <!-- /pypi-strip -->
-</p>
+This repository supports two HDR NeRF pipelines that share the same capture,
+pre-processing, and evaluation workflow, and differ only in the training and
+metrics steps:
 
-<!-- Use this for pypi package (and disable above). Hacky workaround -->
-<!-- <p align="center">
-    <img alt="nerfstudio" src="https://docs.nerf.studio/en/latest/_images/logo.png" width="400">
-</p> -->
+- **PanDORA** — two-stage training with fast/well exposure alignment.
+- **HDR-Nerfacto (`hdr-nerfacto`)** — single-stage training.
 
-<p align="center"> A collaboration friendly studio for NeRFs </p>
+Steps that are identical for both methods are written once below. Where the two
+methods diverge (setup branch, training, metrics) both variants are shown.
 
-<p align="center">
-    <a href="https://docs.nerf.studio">
-        <img alt="documentation" src="https://user-images.githubusercontent.com/3310961/194022638-b591ce16-76e3-4ba6-9d70-3be252b36084.png" width="150">
-    </a>
-    <a href="https://viewer.nerf.studio/">
-        <img alt="viewer" src="https://user-images.githubusercontent.com/3310961/194022636-a9efb85a-14fd-4002-8ed4-4ca434898b5a.png" width="150">
-    </a>
-    <a href="https://colab.research.google.com/github/nerfstudio-project/nerfstudio/blob/main/colab/demo.ipynb">
-        <img alt="colab" src="https://raw.githubusercontent.com/nerfstudio-project/nerfstudio/main/docs/_static/imgs/readme_colab.png" width="150">
-    </a>
-</p>
+## 0. Setup
 
-<img src="https://user-images.githubusercontent.com/3310961/194017985-ade69503-9d68-46a2-b518-2db1a012f090.gif" width="52%"/> <img src="https://user-images.githubusercontent.com/3310961/194020648-7e5f380c-15ca-461d-8c1c-20beb586defe.gif" width="46%"/>
+> Tip: Open this folder in the VS Code **Dev Container** extension.
 
-- [Quickstart](#quickstart)
-- [Learn more](#learn-more)
-- [Supported Features](#supported-features)
+```
+tmux new -s nerf_studio
 
-# About
+docker run -it --rm -v /gel/usr/{USER_NAME}:/mnt/workspace/ -v /home-local2/{USER_NAME}.extra.nobkp/:/mnt/data/ --gpus '"device=0"' -p 8008:8008 -p 6006:6006 lantern_docker:latest /bin/bash
 
-_It’s as simple as plug and play with nerfstudio!_
+cd /mnt/workspace/lantern/nerfstudio-HDR
 
-Nerfstudio provides a simple API that allows for a simplified end-to-end process of creating, training, and testing NeRFs.
-The library supports a **more interpretable implementation of NeRFs by modularizing each component.**
-With more modular NeRFs, we hope to create a more user-friendly experience in exploring the technology.
-
-This is a contributor-friendly repo with the goal of building a community where users can more easily build upon each other's contributions.
-Nerfstudio initially launched as an opensource project by Berkeley students in [KAIR lab](https://people.eecs.berkeley.edu/~kanazawa/index.html#kair) at [Berkeley AI Research (BAIR)](https://bair.berkeley.edu/) in October 2022 as a part of a research project ([paper](https://arxiv.org/abs/2302.04264)). It is currently developed by Berkeley students and community contributors.
-
-We are committed to providing learning resources to help you understand the basics of (if you're just getting started), and keep up-to-date with (if you're a seasoned veteran) all things NeRF. As researchers, we know just how hard it is to get onboarded with this next-gen technology. So we're here to help with tutorials, documentation, and more!
-
-Have feature requests? Want to add your brand-spankin'-new NeRF model? Have a new dataset? **We welcome [contributions](https://docs.nerf.studio/en/latest/reference/contributing.html)!** Please do not hesitate to reach out to the nerfstudio team with any questions via [Discord](https://discord.gg/uMbNqcraFc).
-
-We hope nerfstudio enables you to build faster :hammer: learn together :books: and contribute to our NeRF community :sparkling_heart:.
-
-## Sponsors
-Sponsors of this work includes [Luma AI](https://lumalabs.ai/) and the [BAIR commons](https://bcommons.berkeley.edu/home).
-
-<p align="left">
-    <a href="https://lumalabs.ai/">
-        <!-- pypi-strip -->
-        <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/_static/imgs/luma_dark.png">
-        <source media="(prefers-color-scheme: light)" srcset="docs/_static/imgs/luma_light.png">
-        <!-- /pypi-strip -->
-        <img alt="Luma AI" src="docs/_static/imgs/luma_light.png" width="300">
-        <!-- pypi-strip -->
-        </picture>
-        <!-- /pypi-strip -->
-    </a>
-    <a href="https://bcommons.berkeley.edu/home">
-        <!-- pypi-strip -->
-        <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/_static/imgs/bair_dark.png">
-        <source media="(prefers-color-scheme: light)" srcset="docs/_static/imgs/bair_light.png">
-        <!-- /pypi-strip -->
-        <img alt="BAIR" src="docs/_static/imgs/bair_light.png" width="300">
-        <!-- pypi-strip -->
-        </picture>
-        <!-- /pypi-strip -->
-    </a>
-</p>
-
-
-# Quickstart
-
-The quickstart will help you get started with the default vanilla NeRF trained on the classic Blender Lego scene.
-For more complex changes (e.g., running with your own data/setting up a new NeRF graph), please refer to our [references](#learn-more).
-
-## 1. Installation: Setup the environment
-
-### Prerequisites
-
-You must have an NVIDIA video card with CUDA installed on the system. This library has been tested with version 11.8 of CUDA. You can find more information about installing CUDA [here](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)
-
-### Create environment
-
-Nerfstudio requires `python >= 3.8`. We recommend using conda to manage dependencies. Make sure to install [Conda](https://docs.conda.io/en/latest/miniconda.html) before proceeding.
-
-```bash
-conda create --name nerfstudio -y python=3.8
-conda activate nerfstudio
-pip install --upgrade pip
+git clone https://github.com/MrKarimiD/nerfstudio-HDR.git
+conda activate nerfstudio-HDR
+export PYTHONPATH=$pwd:$PYTHONPATH
+pip install scikit-surgerycore pydub skylibs piq OpenEXR Imath equilib
 ```
 
-### Dependencies
+**Select the branch for your method:**
 
-Install PyTorch with CUDA (this repo has been tested with CUDA 11.7 and CUDA 11.8) and [tiny-cuda-nn](https://github.com/NVlabs/tiny-cuda-nn).
-`cuda-toolkit` is required for building `tiny-cuda-nn`.
+- **HDR-Nerfacto** — check out the `hdr-nerfacto` branch:
+    ```
+    git checkout -t remotes/origin/hdr-nerfacto
+    ```
+- **Pandora** — use the default branch (no checkout needed).
 
-For CUDA 11.7:
+Then finish the install:
 
-```bash
-pip install torch==2.0.1+cu117 torchvision==0.15.2+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
-
-conda install -c "nvidia/label/cuda-11.7.1" cuda-toolkit
-pip install ninja git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 ```
-
-For CUDA 11.8:
-
-```bash
-pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
-
-conda install -c "nvidia/label/cuda-11.8.0" cuda-toolkit
-pip install ninja git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
-```
-
-See [Dependencies](https://github.com/nerfstudio-project/nerfstudio/blob/main/docs/quickstart/installation.md#dependencies)
-in the Installation documentation for more.
-
-### Installing nerfstudio
-
-Easy option:
-
-```bash
-pip install nerfstudio
-```
-
-**OR** if you want the latest and greatest:
-
-```bash
-git clone https://github.com/nerfstudio-project/nerfstudio.git
-cd nerfstudio
-pip install --upgrade pip setuptools
 pip install -e .
+ns-install-cli
+
+pip install -U git+https://github.com/luca-medeiros/lang-segment-anything.git
 ```
 
-**OR** if you want to skip all installation steps and directly start using nerfstudio, use the docker image:
-
-See [Installation](https://github.com/nerfstudio-project/nerfstudio/blob/main/docs/quickstart/installation.md) - **Use docker image**.
-
-## 2. Training your first model!
-
-The following will train a _nerfacto_ model, our recommended model for real world scenes.
-
-```bash
-# Download some test data:
-ns-download-data nerfstudio --capture-name=poster
-# Train model
-ns-train nerfacto --data data/nerfstudio/poster
+If `lang-sam` is not installed, do the following:
+```
+cd ../lang-segment-anything
+pip install .
+cd ../nerfstudio-HDR
 ```
 
-If everything works, you should see training progress like the following:
-
-<p align="center">
-    <img width="800" alt="image" src="https://user-images.githubusercontent.com/3310961/202766069-cadfd34f-8833-4156-88b7-ad406d688fc0.png">
-</p>
-
-Navigating to the link at the end of the terminal will load the webviewer. If you are running on a remote machine, you will need to port forward the websocket port (defaults to 7007).
-
-<p align="center">
-    <img width="800" alt="image" src="https://user-images.githubusercontent.com/3310961/202766653-586a0daa-466b-4140-a136-6b02f2ce2c54.png">
-</p>
-
-### Resume from checkpoint / visualize existing run
-
-It is possible to load a pretrained model by running
-
-```bash
-ns-train nerfacto --data data/nerfstudio/poster --load-dir {outputs/.../nerfstudio_models}
+If there is an issue with `equilib`, do the following:
+```
+pip uninstall equilib
+cd ../equilib
+python setup.py develop
+cd ../nerfstudio-HDR
 ```
 
-## Visualize existing run
+## 1. Data acquisition & pre-processing
 
-Given a pretrained model checkpoint, you can start the viewer by running
+1. Setup the apparatus (stick with two Ricoh cameras)
+    > Cameras:
+    >
+    > **Camera 1**: left, well-exposed, serial: YN14100695 \
+    > **Camera 3**: right, fast-exposed (under-exposed), serial: YN14111000
 
-```bash
-ns-viewer --load-config {outputs/.../config.yml}
-```
+    - To connect the other camera:
+        - Turn wifi off
+        - Close the app
+        - Turn wifi on
+        - Open the app
+        - Connect the other camera
+    - Camera setup:
+        - Install Ricoh Theta app
+        - Connect the camera to the app
+        - Change camera parameters: select manual (bottom right)
+            - First time: turn on "CT Settings" in Shooting settings
+            - Apreture: 2.1
+            - Shutter speed: determined below
+            - ISO: 800
+            - WB: 3500
+    - Make sure the cameras point up to avoid having lights in the seam.
+    - Make sure to film up and down to get good coverage
 
-## 3. Exporting Results
+2. First capture with well-exposed cameras.
+    - Change shutter speed to get a well-exposed image. **Note the shutter speed.**
+    - Start the video on one camera. Connect to the other camera following the steps above and start the video on the second camera.
+    - Clap at the beginning and at the end to use for synchronization.
+    - Go around the scene with the two cameras well-exposed.
 
-Once you have a NeRF model you can either render out a video or export a point cloud.
+3. Second capture with Camera 1 (left) well-exposed and Camera 2 (right) fast-exposed. Change shutter speed of Camera 2 to 1/25000 (fastest exposure) and repeat the steps above
 
-### Render Video
+    If calculating **METRICS**: Capture GT HDR brakets
+    - Go to settings and change the camera mode shooting method to multiple brackets
+    - Set the camera parameters:
+        - Apreture: 2.1
+        - Shutter speed: Calculate the 11 shutter speeds and select the closest ones on the app in order from smallest to hightes
+            ```
+            python lantern_scripts/calculate_exposures.py --min 0.00004 --max 0.004
+            ```
+        - ISO: 800
+        - WB: 3500
+    - Take 10 different locations
 
-First we must create a path for the camera to follow. This can be done in the viewer under the "RENDER" tab. Orient your 3D view to the location where you wish the video to start, then press "ADD CAMERA". This will set the first camera key frame. Continue to new viewpoints adding additional cameras to create the camera path. We provide other parameters to further refine your camera path. Once satisfied, press "RENDER" which will display a modal that contains the command needed to render the video. Kill the training job (or create a new terminal if you have lots of compute) and run the command to generate the video.
+4. Import the files on computer. If on a mac, use Ricoh Theta File Transfer for Mac
 
-Other video export options are available, learn more by running
+5. Get the equirectangular videos by processing them with the Ricoh Theta computer app.
+    - Drag and drop the video file into the app window.
+    - Make sure both boxes are unchecked.
+    - Name files as fallows
+        - Camera 1:
+            - First capture: left_sfm
+            - Second capture: left_e1
+        - Camera 2 (fast exposed):
+            - First capture: right_sfm
+            - Second capture: right_e2
 
-```bash
-ns-render --help
-```
+    If calculating **METRICS**: Group GT brackets under GT folder like so
+        GT/
+            GT1/
+                001.jpg
+                002.jpg
+                ...
+            GT2/
+                ...
+            ...
 
-### Generate Point Cloud
+6. Transfer files on lab machine.
 
-While NeRF models are not designed to generate point clouds, it is still possible. Navigate to the "EXPORT" tab in the 3D viewer and select "POINT CLOUD". If the crop option is selected, everything in the yellow square will be exported into a point cloud. Modify the settings as desired then run the command at the bottom of the panel in your command line.
+    ```
+    scp -r /path/to/source/file /path/to/destination/
+    ```
 
-Alternatively you can use the CLI without the viewer. Learn about the export options by running
+7. Process the videos for OpenSFM. Input the right shutter speed noted above.
 
-```bash
-ns-export pointcloud --help
-```
+    If not calculating metrics:
+    ```
+    python lantern_scripts/process_videos_for_sfm.py --input_dir /mnt/data/scene/ --shutter_speed 0.004
+    ```
 
-## 4. Using Custom Data
+    If calculating **METRICS**:
+    ```
+    python lantern_scripts/process_videos_for_sfm.py --input_dir /mnt/data/scene/ --shutter_speed 0.004 --gt
+    ```
+    - Resize GT_exr and GT_jpg images to 3840x1920 with GNU Image Manipulation Program
+        - Go to Image > Scale Image
+        - Transfer those back on lab machine in th GT folder of the scene naming them GT_jpg_small and GT_exr_small
+    - Add GT_jpg images into sfm/images/ with their appropriate mask (checkout stick_masks folder)
 
-Using an existing dataset is great, but likely you want to use your own data! We support various methods for using your own data. Before it can be used in nerfstudio, the camera location and orientations must be determined and then converted into our format using `ns-process-data`. We rely on external tools for this, instructions and information can be found in the documentation.
-
-| Data                                                                                                 | Capture Device | Requirements                                                      | `ns-process-data` Speed |
-| ---------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------- | ----------------------- |
-| 📷 [Images](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html#images-and-video)      | Any            | [COLMAP](https://colmap.github.io/install.html)                   | 🐢                      |
-| 📹 [Video](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html#images-and-video)       | Any            | [COLMAP](https://colmap.github.io/install.html)                   | 🐢                      |
-| 🌎 [360 Data](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html#360_data)            | Any            | [COLMAP](https://colmap.github.io/install.html)                   | 🐢                      |
-| 📱 [Polycam](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html#polycam-capture)      | IOS with LiDAR | [Polycam App](https://poly.cam/)                                  | 🐇                      |
-| 📱 [KIRI Engine](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html#kiri-capture)     | IOS or Android | [KIRI Engine App](https://www.kiriengine.com/)                    | 🐇                      |
-| 📱 [Record3D](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html#record3d-capture)    | IOS with LiDAR | [Record3D app](https://record3d.app/)                             | 🐇                      |
-| 🖥 [Metashape](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html#metashape)           | Any            | [Metashape](https://www.agisoft.com/)                             | 🐇                      |
-| 🖥 [RealityCapture](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html#realitycapture) | Any            | [RealityCapture](https://www.capturingreality.com/realitycapture) | 🐇                      |
-| 🛠 [Custom](https://docs.nerf.studio/en/latest/quickstart/data_conventions.html)                      | Any            | Camera Poses                                                      | 🐇                      |
-
-## 5. Advanced Options
-
-### Training models other than nerfacto
-
-We provide other models than nerfacto, for example if you want to train the original nerf model, use the following command
-
-```bash
-ns-train vanilla-nerf --data DATA_PATH
-```
-
-For a full list of included models run `ns-train --help`.
-
-### Modify Configuration
-
-Each model contains many parameters that can be changed, too many to list here. Use the `--help` command to see the full list of configuration options.
-
-```bash
-ns-train nerfacto --help
-```
-
-### Tensorboard / WandB / Viewer
-
-We support three different methods to track training progress, using the viewer, [tensorboard](https://www.tensorflow.org/tensorboard), and [Weights and Biases](https://wandb.ai/site). You can specify which visualizer to use by appending `--vis {viewer, tensorboard, wandb, viewer+wandb, viewer+tensorboard}` to the training command. Simultaneously utilizing the viewer alongside wandb or tensorboard may cause stuttering issues during evaluation steps. The viewer only works for methods that are fast (ie. nerfacto, instant-ngp), for slower methods like NeRF, use the other loggers.
-
-# Learn More
-
-And that's it for getting started with the basics of nerfstudio.
-
-If you're interested in learning more on how to create your own pipelines, develop with the viewer, run benchmarks, and more, please check out some of the quicklinks below or visit our [documentation](https://docs.nerf.studio/en/latest/) directly.
-
-| Section                                                                                            | Description                                                                                        |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [Documentation](https://docs.nerf.studio/en/latest/)                                               | Full API documentation and tutorials                                                               |
-| [Viewer](https://viewer.nerf.studio/)                                                              | Home page for our web viewer                                                                       |
-| 🎒 **Educational**                                                                                 |
-| [Model Descriptions](https://docs.nerf.studio/en/latest/nerfology/methods/index.html)              | Description of all the models supported by nerfstudio and explanations of component parts.         |
-| [Component Descriptions](https://docs.nerf.studio/en/latest/nerfology/model_components/index.html) | Interactive notebooks that explain notable/commonly used modules in various models.                |
-| 🏃 **Tutorials**                                                                                   |
-| [Getting Started](https://docs.nerf.studio/en/latest/quickstart/installation.html)                 | A more in-depth guide on how to get started with nerfstudio from installation to contributing.     |
-| [Using the Viewer](https://docs.nerf.studio/en/latest/quickstart/viewer_quickstart.html)           | A quick demo video on how to navigate the viewer.                                                  |
-| [Using Record3D](https://www.youtube.com/watch?v=XwKq7qDQCQk)                                      | Demo video on how to run nerfstudio without using COLMAP.                                          |
-| 💻 **For Developers**                                                                              |
-| [Creating pipelines](https://docs.nerf.studio/en/latest/developer_guides/pipelines/index.html)     | Learn how to easily build new neural rendering pipelines by using and/or implementing new modules. |
-| [Creating datasets](https://docs.nerf.studio/en/latest/quickstart/custom_dataset.html)             | Have a new dataset? Learn how to run it with nerfstudio.                                           |
-| [Contributing](https://docs.nerf.studio/en/latest/reference/contributing.html)                     | Walk-through for how you can start contributing now.                                               |
-| 💖 **Community**                                                                                   |
-| [Discord](https://discord.gg/uMbNqcraFc)                                                           | Join our community to discuss more. We would love to hear from you!                                |
-| [Twitter](https://twitter.com/nerfstudioteam)                                                      | Follow us on Twitter @nerfstudioteam to see cool updates and announcements                         |
-
-# Supported Features
-
-We provide the following support structures to make life easier for getting started with NeRFs.
-
-**If you are looking for a feature that is not currently supported, please do not hesitate to contact the Nerfstudio Team on [Discord](https://discord.gg/uMbNqcraFc)!**
-
-- :mag_right: Web-based visualizer that allows you to:
-  - Visualize training in real-time + interact with the scene
-  - Create and render out scenes with custom camera trajectories
-  - View different output types
-  - And more!
-- :pencil2: Support for multiple logging interfaces (Tensorboard, Wandb), code profiling, and other built-in debugging tools
-- :chart_with_upwards_trend: Easy-to-use benchmarking scripts on the Blender dataset
-- :iphone: Full pipeline support (w/ Colmap, Polycam, or Record3D) for going from a video on your phone to a full 3D render.
-
-# Built On
-
-<a href="https://github.com/brentyi/tyro">
-<!-- pypi-strip -->
-<picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://brentyi.github.io/tyro/_static/logo-dark.svg" />
-<!-- /pypi-strip -->
-    <img alt="tyro logo" src="https://brentyi.github.io/tyro/_static/logo-light.svg" width="150px" />
-<!-- pypi-strip -->
-</picture>
-<!-- /pypi-strip -->
-</a>
-
-- Easy-to-use config system
-- Developed by [Brent Yi](https://brentyi.com/)
-
-<a href="https://github.com/KAIR-BAIR/nerfacc">
-<!-- pypi-strip -->
-<picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/3310961/199083722-881a2372-62c1-4255-8521-31a95a721851.png" />
-<!-- /pypi-strip -->
-    <img alt="tyro logo" src="https://user-images.githubusercontent.com/3310961/199084143-0d63eb40-3f35-48d2-a9d5-78d1d60b7d66.png" width="250px" />
-<!-- pypi-strip -->
-</picture>
-<!-- /pypi-strip -->
-</a>
-
-- Library for accelerating NeRF renders
-- Developed by [Ruilong Li](https://www.liruilong.cn/)
-
-# Citation
-
-You can find a paper writeup of the framework on [arXiv](https://arxiv.org/abs/2302.04264).
-
-If you use this library or find the documentation useful for your research, please consider citing:
+## 2. Process data using OpenSFM
 
 ```
-@inproceedings{nerfstudio,
-	title        = {Nerfstudio: A Modular Framework for Neural Radiance Field Development},
-	author       = {
-		Tancik, Matthew and Weber, Ethan and Ng, Evonne and Li, Ruilong and Yi, Brent
-		and Kerr, Justin and Wang, Terrance and Kristoffersen, Alexander and Austin,
-		Jake and Salahi, Kamyar and Ahuja, Abhik and McAllister, David and Kanazawa,
-		Angjoo
-	},
-	year         = 2023,
-	booktitle    = {ACM SIGGRAPH 2023 Conference Proceedings},
-	series       = {SIGGRAPH '23}
-}
+bin/opensfm_run_all /mnt/data/scene/sfm/
 ```
 
-# Contributors
+To view results:
+```
+python3 viewer/server.py -d /mnt/data/scene/sfm/
+```
+Check that the camera positions make sense and that the number of clusters is low.
 
-<a href="https://github.com/nerfstudio-project/nerfstudio/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=nerfstudio-project/nerfstudio" />
-</a>
+## 3. Process data for NeRF
+
+```
+ns-process-data lantern-openSFM  --data /mnt/data/scene/data/  --output-dir /mnt/data/scene/scene_ns/ --metadata  /mnt/data/scene/sfm/reconstruction.json
+```
+
+For processing existing dataset that used colmap for camera positions:
+```
+ns-process-data images --data /mnt/data/garden/images --output-dir /mnt/data/garden_processed --skip-colmap --skip-image-processing --colmap-model-path /mnt/data/garden/sparse/0
+```
+
+## 4. Train NeRF
+
+Pick the method you set up in Step 0.
+
+### Option A — PanDORA
+
+1. Run step 1 of PanDORA.
+
+    ```
+    ns-train PanDORA --data /mnt/data/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.lantern_steps 1 --pipeline.datamanager.pixel-sampler.lantern_steps 1 --max-num-iterations 60000
+    ```
+
+    1.1. For better alignment between the well and the fast exposed images, run the following command.
+    ```
+    python lantern_scripts/align_fast_to_well.py --input_dir /mnt/data/scene/scene_ns/ --config outputs/scene_ns/PanDORA/2024-08-07_143013/config.yml
+    ```
+
+2. Run step 2 of PanDORA.
+
+    ```
+    ns-train PanDORA --data /mnt/data/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.lantern_steps 2 --pipeline.datamanager.pixel-sampler.lantern_steps 2 --load-dir /mnt/workspace/lantern/nerfstudio-HDR/outputs/scene_ns/PanDORA/2024-06-10_155559/nerfstudio_models --pipeline.model.apply_mu_law False --max-num-iterations 120000
+    ```
+
+### Option B — HDR-Nerfacto (`hdr-nerfacto`)
+
+1. Run hdr-nerfacto.
+
+    ```
+    ns-train hdr-nerfacto --data /mnt/data/nerfstudio_ds/real_data/amphitheatre_1112_2/amphitheatre_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800  --max-num-iterations 120000 --viewer.websocket-port 8008
+    ```
+
+## 5. View results
+
+To use the interface:
+```
+ns-viewer --load-config outputs/scene_ns/PanDORA/2024-06-06_191338/config.yml --viewer.websocket-port 8008
+```
+- For the right side up:
+    - Go to SCENE sub-menu.
+    - Clic on RESET UP DIRECTION.
+- To render a video with the interface command:
+    - Go to RENDER sub-menu.
+    - Clic on ADD CAMERA to manualy set camera view points.
+    - Clic on RENDER to get the command.
+        ```
+        ns-render camera-path --load-config outputs/scene_ns/PanDORA/2024-06-06_191338/config.yml --camera-path-filename /mnt/data/scene/scene_ns/camera_paths/2024-06-06_191338.json --output-path /mnt/data/scene/renders/2024-06-06_191338.mp4
+        ```
+    - To render a video fast-exposed: add --rendered-output-names rgb_fast
+        ```
+        ns-render camera-path --load-config outputs/scene_ns/PanDORA/2024-06-06_191338/config.yml --camera-path-filename /mnt/data/scene/scene_ns/camera_paths/2024-06-06_191338.json --output-path /mnt/data/scene/renders/2024-06-06_191338.mp4 --rendered-output-names rgb_fast
+        ```
+
+To get evaluation images (well-exposed):
+```
+ns-eval --load-config=outputs/scene_ns/PanDORA/2024-06-17_152246/config.yml --output-path=output.json --render_output_path=/mnt/data/scene/eval
+```
+
+- To get fast-exposed evaluation images, change these two lines in nerfstudio/lantern/model.py:
+    ```
+    line 238: if batch["exposure"] != 1.0: # change to == for testing fast-exposed
+    line 242: return None, None # comment for testing fast-exposed
+    ```
+
+- To get evaluation images and tensorboard:
+    ```
+    ns-eval --load-config=outputs/scene_ns/PanDORA/2024-06-20_142413/config.yml --output-path=output.json --render_output_path=/mnt/data/scene/eval  --vis viewer+tensorboard
+    ```
+- To load tensorboard results:
+    ```
+    tensorboard --logdir=/path/to/file
+    ```
+    - Connect to http://localhost:6006/
+
+## 6. Calculate metrics
+
+The single-command convenience script differs by method:
+
+- **PanDORA**:
+    ```
+    python lantern_scripts/calculate_metrics.py --input_dir /mnt/data/coffee_room2/ --checkpoint /mnt/workspace/lantern/nerfstudio-HDR/outputs/coffee_room2_ns/PanDORA/2025-01-22_194346/ --metric_name unaligned
+    ```
+- **HDR-Nerfacto (`hdr-nerfacto`)**:
+    ```
+    python lantern_scripts/calculate_metrics_hdrnerfacto.py --input_dir /mnt/data/coffee_room2/ --checkpoint /mnt/workspace/lantern/nerfstudio-HDR/outputs/coffee_room2_ns/PanDORA/2025-01-22_194346/ --metric_name hdr_nerfacto
+    ```
+
+then point #8
+
+**or**, run the steps manually (identical for both methods):
+
+1. Get ground truth transformations:
+    ```
+    ns-process-data lantern-GT-HDR --data /mnt/data/coffee_room2/coffee_room2_ns/ --output-dir /mnt/data/coffee_room2/metrics --metadata /mnt/data/coffee_room2/sfm/reconstruction.json --checkpoint /mnt/workspace/lantern/nerfstudio-HDR/outputs/coffee_room2_ns/PanDORA/2025-01-22_194346/
+    ```
+
+2. Render panos at ground truth positions for well and fast exposed:
+    ```
+    ns-render camera-path --load-config /mnt/workspace/lantern/nerfstudio-HDR/outputs/coffee_room2_ns/PanDORA/2025-01-22_194346/config.yml --camera-path-filename /mnt/data/coffee_room2/metrics/GT_transforms.json --output-path /mnt/data/coffee_room2/metrics/renders/unaligned --output-format images
+    ```
+    ```
+    ns-render camera-path --load-config /mnt/workspace/lantern/nerfstudio-HDR/outputs/coffee_room2_ns/PanDORA/2025-01-22_194346/config.yml --camera-path-filename /mnt/data/coffee_room2/metrics/GT_transforms.json --output-path /mnt/data/coffee_room2/metrics/renders/unaligned_fast --output-format images --rendered_output_names rgb_fast
+    ```
+
+3. Combine both well and fast exposed panos:
+    ```
+    python lantern_scripts/combine.py --well_dir /mnt/data/coffee_room2/metrics/renders/unaligned/ --fast_dir /mnt/data/coffee_room2/metrics/renders/unaligned_fast/ --out_dir /mnt/data/coffee_room2/metrics/renders/unaligned_lin/ --experiment_location /mnt/data/coffee_room2/data/ --do_linearization
+    ```
+
+4. Make sure the panos from renders have the same names as the GT panos.
+
+5. Calculate PSNR, SSIM and LPIPS:
+    ```
+    python lantern_scripts/ldr_res.py --gt_dir /mnt/data/coffee_room2/GT/GT_exr/  --data_dir /mnt/data/coffee_room2/metrics/renders/unaligned_lin/
+    ```
+
+6. Generate GT and results renders with blender:
+    ```
+    blender --background lantern_scripts/scene_new.blend -P lantern_scripts/hdr_blender.py -- /mnt/data/coffee_room2/GT/GT_exr/ /mnt/data/coffee_room2/GT/GT_exr_renders/
+    ```
+    ```
+    blender --background lantern_scripts/scene_new.blend -P lantern_scripts/hdr_blender.py -- /mnt/data/coffee_room2/metrics/renders/unaligned_lin/ /mnt/data/coffee_room2/metrics/renders/unaligned_lin_renders/
+    ```
+
+7. Calculate si-RMSE, RMSE, RGB ang. and PSNR (LDR r.). Need to change values in code:
+    ```
+    python lantern_scripts/res_table_1.py
+    ```
+
+8. Convert exr panos to hdr:
+    ```
+    convert GT1.exr GT1.hdr
+    ```
+
+9. Calulate PU-PSNR, HDR-VDP and PU-SSIM following the steps in the following link:
+    https://github.com/darthgera123/PanoHDR-NeRF/tree/main/LANet/metrics
+    ```
+    cd hdrvdp-3.0.6
+    ```
+    ```
+    matlab -batch "metric('../../data/GT_meeting_room/', '../../data/results_meeting_room/')"
+    ```
+
+    ```
+    cd ../pu21/matlab/examples
+    ```
+    ```
+    matlab -batch "pupsnr('../../../../data/GT_meeting_room/', '../../../../data/results_meeting_room/')"
+    ```

@@ -68,6 +68,8 @@ class AlignImages:
             except ContourTooSmallException as e:
                 continue
         self.matched_well_contours = [None] * len(self.fast_contours)
+        self.well_points_combined = []
+        self.fast_points_combined = []
         self.well_image = Image(well_image)
         self.well_images = []
         self.well_thresholds = (230, 235, 240, 245, 250)
@@ -165,6 +167,9 @@ class AlignImages:
             well_matched_points, fast_matched_points = self.match_points(well_contour, fast_contour)
             well_points_combined.extend(well_matched_points)
             fast_points_combined.extend(fast_matched_points)
+        # Expose the SIFT/BFMatcher point correspondences (pre-RANSAC) for visualization.
+        self.well_points_combined = well_points_combined
+        self.fast_points_combined = fast_points_combined
         if len(well_points_combined) >= 4:
             well_points = np.float32(well_points_combined)
             fast_points = np.float32(fast_points_combined)
