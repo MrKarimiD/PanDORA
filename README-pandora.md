@@ -155,7 +155,7 @@ ns-process-data images --data /mnt/data/garden/images --output-dir /mnt/data/gar
 1. Run step 1 of lantern-nerfacto.
 
     ```
-    ns-train lantern-nerfacto --data /mnt/data/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.lantern_steps 1 --pipeline.datamanager.pixel-sampler.lantern_steps 1 --max-num-iterations 60000
+    ns-train PanDORA --data /mnt/data/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.lantern_steps 1 --pipeline.datamanager.pixel-sampler.lantern_steps 1 --max-num-iterations 60000
     ```
 
     1.1. For better alignment between the well and the fast exposed images, run the following command.
@@ -166,7 +166,7 @@ ns-process-data images --data /mnt/data/garden/images --output-dir /mnt/data/gar
 2. Run step 2 of lantern-nerfacto.
     
     ```
-    ns-train lantern-nerfacto --data /mnt/data/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.lantern_steps 2 --pipeline.datamanager.pixel-sampler.lantern_steps 2 --load-dir /mnt/workspace/lantern/nerfstudio-HDR/outputs/scene_ns/lantern-nerfacto/2024-06-10_155559/nerfstudio_models --pipeline.model.apply_mu_law False --max-num-iterations 120000
+    ns-train PanDORA --data /mnt/data/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.lantern_steps 2 --pipeline.datamanager.pixel-sampler.lantern_steps 2 --load-dir /mnt/workspace/lantern/nerfstudio-HDR/outputs/scene_ns/lantern-nerfacto/2024-06-10_155559/nerfstudio_models --pipeline.model.apply_mu_law False --max-num-iterations 120000
     ```
 
 ## 4. View results

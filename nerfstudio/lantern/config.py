@@ -20,7 +20,7 @@ from nerfstudio.pipelines.base_pipeline import VanillaPipelineConfig
 
 def Get_lantern_config():
     return TrainerConfig(
-    method_name="lantern-nerfacto",
+    method_name="PanDORA",
     steps_per_eval_batch=500,
     steps_per_save=2000,
     max_num_iterations=100000,

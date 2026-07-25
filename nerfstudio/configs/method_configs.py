@@ -78,9 +78,9 @@ method_configs: Dict[str, TrainerConfig] = {}
 descriptions = {
     "nerfacto": "Recommended real-time model tuned for real captures. This model will be continually updated.",
     "nerfacto-HDR": "Nerfacto that take HDR as input, and output HDR field.",
-    "lantern-nerfacto": "Nerfacto that train on two exposures.",
+    "PanDORA": "Nerfacto that train on two exposures.",
     "panoHDR-nerfacto": "Nerfacto that take HDR as input, and output HDR field.",
-    # "lantern-nerfacto": "Nerfacto that take HDR as input, and output HDR field.",
+    # "PanDORA": "Nerfacto that take HDR as input, and output HDR field.",
     "hdr-nerfacto": "HDR-Nerfacto, adapted to the Nerfacto model.",
     "hdr-nerfacto-wo-crf": "HDR-Nerfacto without CRF, adapted to the Nerfacto model.",	
     "depth-nerfacto": "Nerfacto with depth supervision.",
@@ -131,7 +131,7 @@ method_configs["nerfacto"] = TrainerConfig(
     vis="viewer",
 )
 
-method_configs["lantern-nerfacto"] = Get_lantern_config()
+method_configs["PanDORA"] = Get_lantern_config()
 method_configs["panoHDR-nerfacto"] = Get_PanoHDR_Nerfacto_config()
 
 method_configs["hdr-nerfacto"] = get_hdr_nerfacto_config(use_crf=True, clip_before_accumulation=False)
