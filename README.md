@@ -6,6 +6,10 @@ of Indoor Scenes for Image-based Lighting"** (ICCP 2026).
 - 📄 Paper: https://arxiv.org/abs/2407.06150
 - 🌐 Project page: https://lvsn.github.io/pandora/
 
+![PanDORA teaser](assets/teaser.png)
+
+*A user casually scans a room with a dual 360° rig recording two exposures simultaneously; PanDORA reconstructs a spatially-varying HDR radiance field for realistic image-based lighting.*
+
 PanDORA reconstructs an HDR radiance field of an indoor scene from two 360°
 videos captured at different exposures. This repo lets you download a scene and
 train the model with a single Docker environment.
