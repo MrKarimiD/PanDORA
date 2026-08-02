@@ -1,4 +1,7 @@
-ARG CUDA_VERSION=11.8.0
+# Default to CUDA 11.7 (torch 2.0.1+cu117) to match the known-working environment.
+# cu117 runs on older NVIDIA drivers (r450+) via CUDA-11 minor-version compat;
+# cu118 requires a newer driver. Override with --build-arg CUDA_VERSION=... .
+ARG CUDA_VERSION=11.7.1
 ARG OS_VERSION=22.04
 ARG USER_ID=1000
 # Define base image.
@@ -11,9 +14,18 @@ LABEL org.opencontainers.image.licenses = "Apache License 2.0"
 LABEL org.opencontainers.image.base.name="docker.io/library/nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${OS_VERSION}"
 
 # Variables used at build time.
-## CUDA architectures, required by Colmap and tiny-cuda-nn.
-## NOTE: All commonly used GPU architectures are included and supported here. To speedup the image build process remove all architectures but the one of your explicit GPU. Find details here: https://developer.nvidia.com/cuda-gpus (8.6 translates to 86 in the line below) or in the docs.
-ARG CUDA_ARCHITECTURES=90;89;86;80;75;70;61;52;37
+## CUDA architectures for tiny-cuda-nn.
+## NOTE: sm_89 (Ada) and sm_90 (Hopper) require CUDA >= 11.8, so they are omitted
+## here to stay compatible with the default cu117 toolkit. To speed up the build,
+## keep only your GPU's architecture (find it at https://developer.nvidia.com/cuda-gpus,
+## e.g. 8.6 -> 86). Add 89;90 back only if you also bump CUDA_VERSION to >= 11.8.0.
+ARG CUDA_ARCHITECTURES=86;80;75;70;61;52;37
+
+# Cap parallel compile jobs for the from-source builds (glog/ceres/colmap/tcnn).
+# Ceres+Eigen template compilation is memory-heavy: `make -j$(nproc)` on a
+# many-core host can exhaust RAM and crash GCC (segfault ICE). Raise this only
+# if the machine has plenty of RAM, e.g. --build-arg MAKE_JOBS=$(nproc).
+ARG MAKE_JOBS=4
 
 # Set environment variables.
 ## Set non-interactive to prevent asking for user inputs blocking image creation.
@@ -62,44 +74,17 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 
-# Install GLOG (required by ceres).
-RUN git clone --branch v0.6.0 https://github.com/google/glog.git --single-branch && \
-    cd glog && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make -j `nproc` && \
-    make install && \
-    cd ../.. && \
-    rm -rf glog
-# Add glog path to LD_LIBRARY_PATH.
-ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/local/lib"
-
-# Install Ceres-solver (required by colmap).
-RUN git clone --branch 2.1.0 https://ceres-solver.googlesource.com/ceres-solver.git --single-branch && \
-    cd ceres-solver && \
-    git checkout $(git describe --tags) && \
-    mkdir build && \
-    cd build && \
-    cmake .. -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF && \
-    make -j `nproc` && \
-    make install && \
-    cd ../.. && \
-    rm -rf ceres-solver
-
-# Install colmap.
-RUN git clone --branch 3.8 https://github.com/colmap/colmap.git --single-branch && \
-    cd colmap && \
-    mkdir build && \
-    cd build && \
-    cmake .. -DCUDA_ENABLED=ON \
-             -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHITECTURES} && \
-    make -j `nproc` && \
-    make install && \
-    cd ../.. && \
-    rm -rf colmap
+# NOTE: The COLMAP/Ceres/GLOG stack (and pycolmap/hloc/pyceres/pixel-perfect-sfm
+# below) from the upstream Nerfstudio image has been removed. PanDORA obtains
+# camera poses from OpenSFM (run outside this container) and trains on already
+# processed *_ns scenes, so `ns-train PanDORA` never uses COLMAP-based SfM.
+# Dropping it avoids a long, memory-heavy C++ build and shrinks the image.
 
 # Create non root user and setup environment.
+# Re-declare USER_ID inside the build stage: ARGs declared before FROM are only
+# in scope for the FROM line, so ${USER_ID} would otherwise be empty in RUN steps.
+# (Placed here, after the cached colmap build, to avoid invalidating that layer.)
+ARG USER_ID=1000
 RUN useradd -m -d /home/user -g root -G sudo -u ${USER_ID} user
 RUN usermod -aG sudo user
 # Set user password
@@ -118,37 +103,40 @@ SHELL ["/bin/bash", "-c"]
 # Upgrade pip and install packages.
 RUN python3.10 -m pip install --upgrade pip setuptools pathtools promise pybind11
 # Install pytorch and submodules
+# Re-declare CUDA_VERSION in the build stage (same before-FROM scope issue as USER_ID).
+ARG CUDA_VERSION
 RUN CUDA_VER=${CUDA_VERSION%.*} && CUDA_VER=${CUDA_VER//./} && python3.10 -m pip install \
     torch==2.0.1+cu${CUDA_VER} \
     torchvision==0.15.2+cu${CUDA_VER} \
         --extra-index-url https://download.pytorch.org/whl/cu${CUDA_VER}
+
+# CRITICAL: pin torch/torchvision/numpy for ALL later pip installs via a global
+# constraints file + pip.conf. nerfstudio (torch>=1.13.1) and several extras have
+# unbounded/newer torch requirements; without this they upgrade torch to the latest
+# CUDA-13 build, which the host driver (CUDA 11.x) cannot run -> CUDA unavailable.
+#  - pyequilib==0.5.6: newer pyequilib (>=0.6) dropped the Equi2Pers class that
+#    nerfstudio's equirect_utils imports; 0.5.6 is the last version that keeps it.
+RUN CUDA_VER=${CUDA_VERSION%.*} && CUDA_VER=${CUDA_VER//./} && \
+    printf 'torch==2.0.1+cu%s\ntorchvision==0.15.2+cu%s\nnumpy<2\npyequilib==0.5.6\n' "$CUDA_VER" "$CUDA_VER" > /home/user/pip-constraints.txt && \
+    mkdir -p /home/user/.config/pip && \
+    printf '[global]\nextra-index-url = https://download.pytorch.org/whl/cu%s\n' "$CUDA_VER" > /home/user/.config/pip/pip.conf
+ENV PIP_CONSTRAINT=/home/user/pip-constraints.txt
+
 # Install tynyCUDNN (we need to set the target architectures as environment variable first).
 ENV TCNN_CUDA_ARCHITECTURES=${CUDA_ARCHITECTURES}
-RUN python3.10 -m pip install git+https://github.com/NVlabs/tiny-cuda-nn.git@v1.6#subdirectory=bindings/torch
+# Cap ninja/nvcc parallelism (same OOM concern as the ceres build above).
+ENV MAX_JOBS=${MAKE_JOBS}
+# tiny-cuda-nn's setup.py imports torch at build time. Modern pip builds wheels in
+# an isolated env that lacks torch, so use --no-build-isolation to see the torch
+# installed above; ninja is required to compile the CUDA bindings.
+# Note: tiny-cuda-nn has no `v1.7` git tag (that version was only ever on master);
+# v1.6 is the last real tag, builds on CUDA 11.7, and matches nerfstudio 0.3.2.
+RUN python3.10 -m pip install ninja wheel && \
+    python3.10 -m pip install --no-build-isolation \
+        git+https://github.com/NVlabs/tiny-cuda-nn.git@v1.6#subdirectory=bindings/torch
 
-# Install pycolmap, required by hloc.
-RUN git clone --branch v0.4.0 --recursive https://github.com/colmap/pycolmap.git && \
-    cd pycolmap && \
-    python3.10 -m pip install . && \
-    cd ..
-
-# Install hloc master (last release (1.3) is too old) as alternative feature detector and matcher option for nerfstudio.
-RUN git clone --branch master --recursive https://github.com/cvg/Hierarchical-Localization.git && \
-    cd Hierarchical-Localization && \
-    python3.10 -m pip install -e . && \
-    cd ..
-
-# Install pyceres from source
-RUN git clone --branch v1.0 --recursive https://github.com/cvg/pyceres.git && \
-    cd pyceres && \
-    python3.10 -m pip install -e . && \
-    cd ..
-
-# Install pixel perfect sfm.
-RUN git clone --branch v1.0 --recursive https://github.com/cvg/pixel-perfect-sfm.git && \
-    cd pixel-perfect-sfm && \
-    python3.10 -m pip install -e . && \
-    cd ..
+# (pycolmap / hloc / pyceres / pixel-perfect-sfm removed — see note above. These
+# are COLMAP-based SfM feature matchers that the PanDORA pipeline does not use.)
 
 RUN python3.10 -m pip install omegaconf
 # Copy nerfstudio folder and give ownership to user.
@@ -161,6 +149,59 @@ USER ${USER_ID}
 RUN cd nerfstudio && \
     python3.10 -m pip install -e . && \
     cd ..
+
+# ---------------------------------------------------------------------------
+# PanDORA additions (on top of the base Nerfstudio image)
+# ---------------------------------------------------------------------------
+
+# Blender (pinned LTS). hdr_blender.py / render_all.py invoke `blender --background`,
+# so we need the Blender binary on PATH (not the pip `bpy` module).
+USER root
+ARG BLENDER_VERSION=3.6.5
+ARG BLENDER_MAJOR=3.6
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libsm6 xz-utils unzip && \
+    rm -rf /var/lib/apt/lists/* && \
+    wget -q https://download.blender.org/release/Blender${BLENDER_MAJOR}/blender-${BLENDER_VERSION}-linux-x64.tar.xz -O /tmp/blender.tar.xz && \
+    mkdir -p /opt/blender && \
+    tar -xf /tmp/blender.tar.xz -C /opt/blender --strip-components=1 && \
+    rm /tmp/blender.tar.xz && \
+    ln -s /opt/blender/blender /usr/local/bin/blender
+
+# PanDORA-specific Python dependencies (as the non-root user).
+USER ${USER_ID}
+RUN python3.10 -m pip install --no-cache-dir \
+        scikit-surgerycore \
+        pydub \
+        skylibs \
+        piq \
+        OpenEXR \
+        Imath
+
+# equilib: provided by pyequilib==0.5.6, pinned in the constraints file above and
+# installed with nerfstudio. We deliberately do NOT use the repo's vendored
+# equilib/ folder: it is git-ignored (absent on a fresh clone) and, because the
+# repo root is on PYTHONPATH, a folder literally named `equilib/` shadows the real
+# package as an empty namespace ("Equi2Pers unknown location").
+
+# NOTE: lang-segment-anything is intentionally NOT installed. Current lang-sam
+# requires torch>=2.3 (needs a newer driver than this cu117 build targets) and is
+# only used for optional mask generation — the released dataset scenes already
+# ship masks. Install a torch-2.0-compatible lang-sam separately if you need it.
+
+# Pin runtime dependency versions that the floating requirements otherwise break:
+#  - numpy<2: opencv-python==4.6.0.66 (and the torch 2.0.1 stack) are compiled
+#    against numpy 1.x; some extras above pull numpy 2.x, breaking cv2 import.
+#  - viser==0.0.16: nerfstudio 0.3.2's viewer_beta uses the old viser GUI API
+#    (GuiHandle, ...) that newer viser (>=0.1.0) removed.
+# Kept last so earlier installs can't override these pins.
+RUN python3.10 -m pip install --no-cache-dir "numpy<2" "viser==0.0.16"
+
+# Make the repo root importable so `lantern_scripts` (used by nerfstudio's lantern
+# processors and PanDORA config) resolves without a manual `export PYTHONPATH`.
+# The host repo is mounted onto this same path at runtime.
+ENV PYTHONPATH=/home/user/nerfstudio
 
 # Change working directory
 WORKDIR /workspace
