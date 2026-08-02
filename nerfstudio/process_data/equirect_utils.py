@@ -563,7 +563,7 @@ def generate_planar_projections_from_equirectangular_GT(
         if os.path.isdir(output_mask_dir):
             CONSOLE.log(f"The directory {output_mask_dir} exists. Deleting the folder...")
             shutil.rmtree(output_mask_dir)
-        output_mask_dir.mkdir(exist_ok=False)
+        output_mask_dir.mkdir(parents=True, exist_ok=True)
     
     progress = Progress(
         TextColumn("[bold blue]Generating Planar Images", justify="right"),

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Literal, Tuple
 import os
+import shutil
 import numpy as np
 from numpy.linalg import inv
 import cv2
@@ -38,6 +39,29 @@ from rich.progress import (
 )
 from nerfstudio.utils.rich_utils import CONSOLE, ItersPerSecColumn
 from nerfstudio.utils import io
+
+
+def _populate_camera_mask_folder(data_dir, sequence_name):
+    """Route per-image masks from the flat <data_dir>/masks/ folder into
+    <data_dir>/<sequence_name>/mask/<image_stem>.png, which is where the GT
+    planar-projection step expects each mask. Handles source masks stored as
+    masks/<camera>/<stem>.png, masks/<camera>_<stem>.png, or masks/<stem>.png."""
+    cam_dir = data_dir / sequence_name
+    src_dir = data_dir / "masks"
+    if not src_dir.is_dir():
+        return
+    dst_dir = cam_dir / "mask"
+    dst_dir.mkdir(exist_ok=True)
+    for img in sorted(cam_dir.glob("*.png")):
+        stem = img.stem
+        for candidate in (
+            src_dir / sequence_name / f"{stem}.png",
+            src_dir / f"{sequence_name}_{stem}.png",
+            src_dir / f"{stem}.png",
+        ):
+            if candidate.exists():
+                shutil.copy(candidate, dst_dir / f"{stem}.png")
+                break
 
 
 def apply_correction(coefs, img, CORRECTION_CURVE_TYPE) -> np.ndarray:
@@ -243,6 +267,8 @@ class OpenSFMToNeRFStudioDataset(BaseConverterToNerfstudioDataset):
             metadata_dict_all = {}
             # for sequence_name in ['left_sfm', 'right_sfm']:
             for sequence_name in ['left_e1', 'right_e2']:
+                if self.use_mask:
+                    _populate_camera_mask_folder(self.data, sequence_name)
                 CONSOLE.log(f"Generating {self.images_per_equirect} {pers_size} sized images per equirectangular image")
                 out_dir = equirect_utils.generate_planar_projections_from_equirectangular_GT(
                     self.output_dir / 'panoramic_transforms.json',
