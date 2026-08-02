@@ -196,3 +196,27 @@ camera_paths/
 */**/.DS_Store
 */**/._.DS_Store
 
+
+# ---- PanDORA project-specific ignores ----
+# Vendored / third-party sources (installed from PyPI or fetched at build time)
+equilib/
+equilib_src/
+lang-sam/
+lang-segment-anything/
+Image-ExifTool*/
+
+# Experiment results, log dumps and scratch outputs
+gspalts_results/
+test_color_correction/
+metrics_sheet.csv
+/output.json
+/output_log.txt
+/install.txt
+/all_flags.txt
+/test.txt
+/temp.txt
+/gt.png
+/out.png
+/test.png
+lab_downstairs_*.json
+only_LDR-nerf.json
