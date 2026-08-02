@@ -11,7 +11,7 @@ class ContourTooSmallException(Exception):
     pass
 
 class Image:
-    def __init__(self, image, threshold = 5):
+    def __init__(self, image, threshold = 7):
         self.image = image.copy()
         self.threshold = threshold
         self.gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -141,6 +141,27 @@ class AlignImages:
                         continue
         return list(zip(self.matched_well_contours, self.fast_contours))
 
+    def save_contour_visualizations(self, output_dir, name):
+        os.makedirs(output_dir, exist_ok=True)
+
+        def draw(image, contours, suffix):
+            vis = image.copy()
+            for idx, contour in enumerate(contours):
+                if contour is None:
+                    continue
+                cv2.drawContours(vis, [contour.contour], -1, (0, 255, 0), 2)
+                cx, cy = int(contour.centroid[0]), int(contour.centroid[1])
+                cv2.circle(vis, (cx, cy), 4, (255, 0, 0), -1)
+                cv2.putText(vis, str(idx), (cx + 5, cy - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+            out_path = os.path.join(output_dir, name.replace(".png", suffix))
+            cv2.imwrite(out_path, cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
+
+        # Detected contours on the fast (right) image
+        draw(self.fast_image.image, self.fast_contours, "_fast_contours.png")
+        # Matched contours on the well (left/rendered) image
+        draw(self.well_image.image, self.matched_well_contours, "_well_contours.png")
+
     def get_point_descriptors(self, points, image):
         sift = cv2.SIFT_create()
         keypoints = [cv2.KeyPoint(x=float(p[0]), y=float(p[1]), size=20) for p in points]
@@ -254,6 +275,7 @@ if __name__ == '__main__':
     argparser.add_argument("--config", type=str, default="outputs/scene_ns/lantern-nerfacto/2024-06-20_142413/config.yml", help="Nerfstudio config file")
     argparser.add_argument("--no_render", action='store_true', default=False, help="Doesn't render images for alignment if flag is present")
     argparser.add_argument("--no_copy", action='store_true', default=False, help="Doesn't copy the original data if flag is present. Use if already copied.")
+    argparser.add_argument("--visualize_contours", action='store_true', default=False, help="Saves images of the detected/matched contours for debugging if flag is present.")
     args = argparser.parse_args()
 
     json_path = os.path.join(args.input_dir, 'alignment_matrices.json')
@@ -266,6 +288,7 @@ if __name__ == '__main__':
     masks_path_aligned = os.path.join(args.input_dir, 'masks')
     masks_path_unaligned = masks_path_aligned + '_unaligned'
     merged_images = os.path.join(images_path_aligned, 'merged')
+    contour_visualizations_path = os.path.join(args.input_dir, 'contour_visualizations')
 
     if not args.no_render:
         print("Rendering images for alignment...")
@@ -296,6 +319,12 @@ if __name__ == '__main__':
             warped_image = right_image
             matrix = np.zeros((3, 3))
             print(f"Failed to align: {right_name}")
+
+        if args.visualize_contours:
+            try:
+                align_images.save_contour_visualizations(contour_visualizations_path, right_name)
+            except Exception as e:
+                print(f"Failed to visualize contours: {right_name}")
 
         cv2.imwrite(os.path.join(images_path_aligned, right_name), cv2.cvtColor(warped_image, cv2.COLOR_RGB2BGR))
         save_transformation(json_path, right_name, matrix)
