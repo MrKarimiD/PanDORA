@@ -88,24 +88,3 @@ own scenes, running OpenSFM, and computing metrics — see:
   url           = {https://arxiv.org/abs/2407.06150}
 }
 ```
-
-This work builds on Nerfstudio and, for `hdr-nerfacto`, HDR-NeRF — please cite
-them too:
-
-```bibtex
-@inproceedings{nerfstudio,
-  title        = {Nerfstudio: A Modular Framework for Neural Radiance Field Development},
-  author       = {Tancik, Matthew and Weber, Ethan and Ng, Evonne and Li, Ruilong and Yi, Brent and Kerr, Justin and Wang, Terrance and Kristoffersen, Alexander and Austin, Jake and Salahi, Kamyar and Ahuja, Abhik and McAllister, David and Kanazawa, Angjoo},
-  year         = 2023,
-  booktitle    = {ACM SIGGRAPH 2023 Conference Proceedings},
-  series       = {SIGGRAPH '23}
-}
-
-@inproceedings{huang2022hdr,
-  title        = {HDR-NeRF: High Dynamic Range Neural Radiance Fields},
-  author       = {Huang, Xin and Zhang, Qi and Feng, Ying and Li, Hongdong and Wang, Xuan and Wang, Qing},
-  booktitle    = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-  pages        = {18398--18408},
-  year         = {2022}
-}
-```
