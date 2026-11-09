@@ -285,6 +285,11 @@ class HDRInputDataset(InputDataset):
     def __init__(self, dataparser_outputs: DataparserOutputs, scale_factor: float = 1.0):
         super().__init__(dataparser_outputs, scale_factor)
         
+    @property
+    def images_are_8bit(self) -> bool:
+        """PNG inputs are divided by 255, so the train cache can store them as uint8 (EXR inputs cannot)."""
+        return all(str(f).endswith(".png") for f in self._dataparser_outputs.image_filenames)
+
     def __len__(self):
         return len(self._dataparser_outputs.image_filenames)
 

@@ -119,7 +119,16 @@ class CacheDataloader(DataLoader):
             for res in track(results, description="Loading data batch", transient=True):
                 data = res.result()
                 if self.compact_images:
-                    data["image"] = (data["image"] * 255.0).round_().to(torch.uint8)
+                    compact = (data["image"] * 255.0).round_().clamp_(0, 255).to(torch.uint8)
+                    # Only keep the uint8 copy if it reproduces the float image exactly.
+                    if torch.equal(compact.float() / 255.0, data["image"]):
+                        data["image"] = compact
+                    else:
+                        CONSOLE.print("[bold yellow]compact_image_cache: image is not 8-bit, keeping float32 cache.")
+                        self.compact_images = False
+                        for prev in batch_list:
+                            if prev["image"].dtype == torch.uint8:
+                                prev["image"] = prev["image"].float() / 255.0
                 batch_list.append(data)
 
         return batch_list
