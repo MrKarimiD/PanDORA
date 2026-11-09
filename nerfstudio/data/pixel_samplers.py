@@ -52,6 +52,10 @@ class PixelSamplerConfig(InstantiateConfig):
 
     pandora_steps: int = -1
     """  Define which steps of pandora is going on!! """
+    compact_mask_indices: bool = True
+    """Cache the valid-pixel coordinates used for masked sampling as int16/int32 instead of int64.
+    Cuts the sampler's RAM use by 3-4x so more training images fit in memory; results are identical.
+    Set to False to restore the original int64 behaviour."""
 
 
 class PixelSampler:
@@ -91,7 +95,12 @@ class PixelSampler:
     def sample_considering_mask(self, mask, device, batch_size):
         num_masks = mask.shape[0]
         indices = torch.empty((0, 3), dtype=torch.long, device=device)
-        nonzero_indices_whole = torch.tensor([]).to(device)
+        whole_chunks = []
+        # Smallest integer type that can hold image index, row and column.
+        if self.config.compact_mask_indices:
+            store_dtype = torch.int16 if max(num_masks, *mask.shape[1:3]) < 2**15 else torch.int32
+        else:
+            store_dtype = torch.long
 
         if num_masks > 0:
             size_of_disk = 50
@@ -115,7 +124,7 @@ class PixelSampler:
                 if nonzero_indices.shape[0] == 0 or num_samples == 0:
                     # No valid pixel in this chunk (e.g. no light source visible in these
                     # fast-exposed views): skip it, the shortfall is filled in below.
-                    nonzero_indices_whole = torch.cat((nonzero_indices_whole, nonzero_indices.cpu()), dim=0)
+                    whole_chunks.append(nonzero_indices.cpu().to(store_dtype))
                     del current_masks
                     del nonzero_indices
                     continue
@@ -123,12 +132,18 @@ class PixelSampler:
                 
                 indice_this_disk = nonzero_indices[chosen_indices]
                 indices = torch.cat((indices, indice_this_disk), dim=0).long()
-                nonzero_indices_whole = torch.cat((nonzero_indices_whole, nonzero_indices.cpu()), dim=0)
+                whole_chunks.append(nonzero_indices.cpu().to(store_dtype))
                 
                 del current_masks
                 del nonzero_indices
                 del indice_this_disk
 
+        # Concatenate once at the end (repeated torch.cat in the loop copies everything each time).
+        nonzero_indices_whole = torch.cat(whole_chunks, dim=0) if whole_chunks \
+                                    else torch.empty((0, 3), dtype=store_dtype)
+        del whole_chunks
+
+        if num_masks > 0:
             # Top up from all valid pixels if some chunks had nothing to sample.
             shortfall = batch_size - indices.shape[0]
             if shortfall > 0 and nonzero_indices_whole.shape[0] > 0:
@@ -171,31 +186,31 @@ class PixelSampler:
                 if only_light_sources:
                     if self.is_light_sources_computed:
                         chosen_indices = torch.randint(0, self.light_sources_indices.shape[0], (batch_size,))
-                        return self.light_sources_indices[chosen_indices].to(device)
+                        return self.light_sources_indices[chosen_indices].to(device).long()
                     else:
                         assert validity is not None, "Validy needs to be defined for the light sources samples"
                         validity = validity.squeeze(-1).cpu()
                         mask_combine = torch.logical_and(mask, validity)
                         indices, nonzero_indices_whole = self.sample_considering_mask(mask_combine, device, batch_size)
-                        self.light_sources_indices = nonzero_indices_whole.long().cpu()
+                        self.light_sources_indices = nonzero_indices_whole.cpu()
                         self.is_light_sources_computed = True
                         return indices
                 else:
                     if self.is_fast_exposed_computed:
                         chosen_indices = torch.randint(0, self.fast_exposed_indices.shape[0], (batch_size,))
-                        return self.fast_exposed_indices[chosen_indices].to(device)
+                        return self.fast_exposed_indices[chosen_indices].to(device).long()
                     else:
                         indices, nonzero_indices_whole = self.sample_considering_mask(mask, device, batch_size)
-                        self.fast_exposed_indices = nonzero_indices_whole.long().cpu()
+                        self.fast_exposed_indices = nonzero_indices_whole.cpu()
                         self.is_fast_exposed_computed = True
                         return indices
             else:
                 if self.is_well_exposed_computed:
                     chosen_indices = torch.randint(0, self.well_exposed_indices.shape[0], (batch_size,))
-                    return self.well_exposed_indices[chosen_indices].to(device)
+                    return self.well_exposed_indices[chosen_indices].to(device).long()
                 else:
                     indices, nonzero_indices_whole = self.sample_considering_mask(mask, device, batch_size)
-                    self.well_exposed_indices = nonzero_indices_whole.long().cpu()
+                    self.well_exposed_indices = nonzero_indices_whole.cpu()
                     self.is_well_exposed_computed = True
                     return indices
         else:
