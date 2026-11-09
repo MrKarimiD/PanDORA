@@ -90,7 +90,7 @@ class PixelSampler:
 
     def sample_considering_mask(self, mask, device, batch_size):
         num_masks = mask.shape[0]
-        indices = torch.tensor([]).cuda().to(device)
+        indices = torch.empty((0, 3), dtype=torch.long, device=device)
         nonzero_indices_whole = torch.tensor([]).to(device)
 
         if num_masks > 0:
