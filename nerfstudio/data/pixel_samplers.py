@@ -107,8 +107,18 @@ class PixelSampler:
                 # Add offset to indices:local indices --> global
                 nonzero_indices[:,0] += start
                 
-                num_samples = batch_size // (num_disks-1) if current_disk != random_idx_disk \
-                                    else batch_size % (num_disks-1)
+                if num_disks == 1:
+                    num_samples = batch_size
+                else:
+                    num_samples = batch_size // (num_disks-1) if current_disk != random_idx_disk \
+                                        else batch_size % (num_disks-1)
+                if nonzero_indices.shape[0] == 0 or num_samples == 0:
+                    # No valid pixel in this chunk (e.g. no light source visible in these
+                    # fast-exposed views): skip it, the shortfall is filled in below.
+                    nonzero_indices_whole = torch.cat((nonzero_indices_whole, nonzero_indices.cpu()), dim=0)
+                    del current_masks
+                    del nonzero_indices
+                    continue
                 chosen_indices = torch.randint(0, nonzero_indices.shape[0], (num_samples,), device=device)
                 
                 indice_this_disk = nonzero_indices[chosen_indices]
@@ -118,7 +128,13 @@ class PixelSampler:
                 del current_masks
                 del nonzero_indices
                 del indice_this_disk
-        
+
+            # Top up from all valid pixels if some chunks had nothing to sample.
+            shortfall = batch_size - indices.shape[0]
+            if shortfall > 0 and nonzero_indices_whole.shape[0] > 0:
+                extra = torch.randint(0, nonzero_indices_whole.shape[0], (shortfall,))
+                indices = torch.cat((indices, nonzero_indices_whole[extra].to(device)), dim=0).long()
+
         return indices, nonzero_indices_whole
     
     @profiler.time_function
