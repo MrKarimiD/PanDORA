@@ -56,10 +56,13 @@ class CacheDataloader(DataLoader):
         device: Union[torch.device, str] = "cpu",
         collate_fn: Callable[[Any], Any] = nerfstudio_collate,
         exclude_batch_keys_from_device: Optional[List[str]] = None,
+        compact_images: bool = False,
         **kwargs,
     ):
         if exclude_batch_keys_from_device is None:
             exclude_batch_keys_from_device = ["image"]
+        # Store 8-bit images as uint8 in the cache; the pixel sampler converts sampled pixels back to float.
+        self.compact_images = compact_images and getattr(dataset, "images_are_8bit", False)
         self.dataset = dataset
         assert isinstance(self.dataset, Sized)
 
@@ -114,7 +117,10 @@ class CacheDataloader(DataLoader):
                 results.append(res)
 
             for res in track(results, description="Loading data batch", transient=True):
-                batch_list.append(res.result())
+                data = res.result()
+                if self.compact_images:
+                    data["image"] = (data["image"] * 255.0).round_().to(torch.uint8)
+                batch_list.append(data)
 
         return batch_list
 

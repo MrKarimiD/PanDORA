@@ -348,6 +348,10 @@ class VanillaDataManagerConfig(DataManagerConfig):
     patch_size: int = 1
     """Size of patch to sample from. If >1, patch-based sampling will be used."""
     pixel_sampler: PixelSamplerConfig = PixelSamplerConfig()
+    compact_image_cache: bool = True
+    """Keep cached 8-bit training images as uint8 (4x less RAM than float32) and convert only the
+    sampled pixels to float. Results are identical. Only applies to datasets that load 8-bit images
+    (PanDORA's HDRInputDataset). Set to False to restore the original float32 cache."""
     """Specifies the pixel sampler used to sample pixels from images."""
     
 TDataset = TypeVar("TDataset", bound=InputDataset, default=InputDataset)
@@ -481,6 +485,7 @@ class VanillaDataManager(DataManager, Generic[TDataset]):
             pin_memory=True,
             collate_fn=self.config.collate_fn,
             exclude_batch_keys_from_device=self.exclude_batch_keys_from_device,
+            compact_images=self.config.compact_image_cache,
         )
         self.iter_train_image_dataloader = iter(self.train_image_dataloader)
         self.train_pixel_sampler = self._get_pixel_sampler(self.train_dataset, self.config.train_num_rays_per_batch)
@@ -506,6 +511,7 @@ class VanillaDataManager(DataManager, Generic[TDataset]):
             pin_memory=True,
             collate_fn=self.config.collate_fn,
             exclude_batch_keys_from_device=self.exclude_batch_keys_from_device,
+            compact_images=self.config.compact_image_cache,
         )
         self.iter_eval_image_dataloader = iter(self.eval_image_dataloader)
         self.eval_pixel_sampler = self._get_pixel_sampler(self.eval_dataset, self.config.eval_num_rays_per_batch)

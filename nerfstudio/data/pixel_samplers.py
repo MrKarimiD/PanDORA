@@ -300,6 +300,9 @@ class PixelSampler:
             key: value[chan, y, x] for key, value in batch.items() if key != "image_idx" and key != "exposure" and key != "image_filename" and value is not None
         }
         assert collated_batch["image"].shape[0] == num_rays_per_batch
+        if collated_batch["image"].dtype == torch.uint8:
+            # Compact image cache (see VanillaDataManagerConfig.compact_image_cache).
+            collated_batch["image"] = collated_batch["image"].float() / 255.0
 
         # Needed to correct the random indices to their actual camera idx locations.
         collated_batch["indices"] = indices.clone()  # with the abs camera indices
@@ -378,6 +381,9 @@ class PixelSampler:
         collated_batch["image"] = torch.cat(all_images, dim=0)
 
         assert collated_batch["image"].shape[0] == num_rays_per_batch
+        if collated_batch["image"].dtype == torch.uint8:
+            # Compact image cache (see VanillaDataManagerConfig.compact_image_cache).
+            collated_batch["image"] = collated_batch["image"].float() / 255.0
 
         # Needed to correct the random indices to their actual camera idx locations.
         indices[:, 0] = batch["image_idx"][c]

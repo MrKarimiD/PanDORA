@@ -46,6 +46,9 @@ class HDRNerfactoInputDataset(InputDataset):
     # exclude_batch_keys_from_device: List[str] = ["image", "mask"]
     # cameras: Cameras
 
+    images_are_8bit = True
+    """Images are 8-bit PNGs divided by 255, so the train cache can store them as uint8."""
+
     def __init__(self, dataparser_outputs: DataparserOutputs, scale_factor: float = 1.0):
         super().__init__(dataparser_outputs, scale_factor)
         
