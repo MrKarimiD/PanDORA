@@ -30,7 +30,7 @@ from nerfstudio.fields.nerfacto_field import \
     NerfactoField  # for subclassing NerfactoField
 
 
-class LanternNerfactoField(NerfactoField):
+class PandoraNerfactoField(NerfactoField):
     """Template Field
 
     Args:

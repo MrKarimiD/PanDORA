@@ -10,7 +10,7 @@ if __name__ == '__main__':
     argparser.add_argument("--input_dir", type=str, required=True, default="/mnt/data/scene/scene_ns/",
                            help="Directory containing input data (e.g. videos, GT, etc.)")
     argparser.add_argument("--checkpoint", type=str, required=True,
-                           default="/mnt/workspace/lantern/nerfstudio-HDR/outputs/coffee_room2_ns/lantern-nerfacto/2025-01-22_194346/",
+                           default="/mnt/workspace/pandora/nerfstudio-HDR/outputs/coffee_room2_ns/pandora-nerfacto/2025-01-22_194346/",
                            help="Directory containing training data (e.g. config.yml and checkpoint info)")
     argparser.add_argument("--metric_name", type=str, required=True, default="unaligned",
                            help="Name of the method, used for naming output directories")
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     # 1. Get ground truth transformations:
     print("Running ns-process-data to get GT transformations...")
     subprocess.run([
-        "ns-process-data", "lantern-GT-HDR",
+        "ns-process-data", "pandora-GT-HDR",
         "--data", args.input_dir,
         "--output-dir", metrics_dir,
         "--metadata", os.path.join(args.input_dir, "sfm/reconstruction.json"),
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     # 3. Combine both well and fast exposed panos:
     print("Combining well and fast exposure renders...")
     subprocess.run([
-        "python", "lantern_scripts/combine.py",
+        "python", "pandora_scripts/combine.py",
         "--well_dir", renders_well + "/",
         "--fast_dir", renders_fast + "/",
         "--out_dir", renders_lin + "/",
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     # 5. Calculate PSNR, SSIM and LPIPS:
     print("Calculating LDR metrics (PSNR, SSIM, LPIPS)...")
     subprocess.run([
-        "python", "lantern_scripts/ldr_res.py",
+        "python", "pandora_scripts/ldr_res.py",
         "--gt_dir", gt_exr + "/",
         "--data_dir", renders_lin + "/"
     ], check=True)
@@ -142,8 +142,8 @@ if __name__ == '__main__':
     if not rendered_files_exist:
         print("Rendering GT images with Blender...")
         subprocess.run([
-            "blender", "--background", "lantern_scripts/scene_new.blend",
-            "-P", "lantern_scripts/hdr_blender.py", "--",
+            "blender", "--background", "pandora_scripts/scene_new.blend",
+            "-P", "pandora_scripts/hdr_blender.py", "--",
             os.path.join(gt_exr, ""), os.path.join(gt_exr_renders, "")
         ], check=True)
     else:
@@ -151,15 +151,15 @@ if __name__ == '__main__':
 
     print("Rendering result images with Blender...")
     subprocess.run([
-        "blender", "--background", "lantern_scripts/scene_new.blend",
-        "-P", "lantern_scripts/hdr_blender.py", "--",
+        "blender", "--background", "pandora_scripts/scene_new.blend",
+        "-P", "pandora_scripts/hdr_blender.py", "--",
         renders_lin + "/", lin_renders + "/"
     ], check=True)
 
     # 7. Calculate si-RMSE, RMSE, RGB angular error and PSNR (LDR rendered):
     print("Calculating additional metrics (si-RMSE, RMSE, angular error, PSNR)...")
     subprocess.run([
-        "python", "lantern_scripts/res_table_1.py",
+        "python", "pandora_scripts/res_table_1.py",
         "--results_dataset_roots", lin_renders + "/",
         "--gt_dataset_root", gt_exr_renders + "/",
         "--output_folder", metrics_dir + "/results_table/",
@@ -169,12 +169,12 @@ if __name__ == '__main__':
     # 8. Convert EXR panos to HDR format:
     print("Converting EXR panos to HDR...")
     subprocess.run([
-        "python", "lantern_scripts/exr2hdr.py",
+        "python", "pandora_scripts/exr2hdr.py",
         "--hdr_dir", renders_lin,
         "--output_dir", renders_lin_HDR
     ], check=True)
     subprocess.run([
-        "python", "lantern_scripts/exr2hdr.py",
+        "python", "pandora_scripts/exr2hdr.py",
         "--hdr_dir", gt_exr,
         "--output_dir", gt_hdr
     ], check=True)
@@ -182,22 +182,22 @@ if __name__ == '__main__':
     # 9. Convert EXR panos to LDR format:
     print("Converting EXR panos to LDR visualization...")
     subprocess.run([
-        "python", "lantern_scripts/tonemap.py",
+        "python", "pandora_scripts/tonemap.py",
         "--data_dir", renders_lin,
         "--out_dir", renders_lin
     ], check=True)
     subprocess.run([
-        "python", "lantern_scripts/tonemap.py",
+        "python", "pandora_scripts/tonemap.py",
         "--data_dir", gt_exr,
         "--out_dir", gt_exr
     ], check=True)
     subprocess.run([
-        "python", "lantern_scripts/tonemap.py",
+        "python", "pandora_scripts/tonemap.py",
         "--data_dir", lin_renders,
         "--out_dir", lin_renders
     ], check=True)
     subprocess.run([
-        "python", "lantern_scripts/tonemap.py",
+        "python", "pandora_scripts/tonemap.py",
         "--data_dir", gt_exr_renders,
         "--out_dir", gt_exr_renders
     ], check=True)
@@ -205,7 +205,7 @@ if __name__ == '__main__':
      # 9. Convert EXR panos to LDR format:
     print("Preparing the HTML visualization...")
     subprocess.run([
-        "python", "lantern_scripts/results_visualization.py",
+        "python", "pandora_scripts/results_visualization.py",
         "--gt_dir", gt_exr,
         "--gt_render_dir", gt_exr_renders,
         "--pandora_dir", renders_lin,

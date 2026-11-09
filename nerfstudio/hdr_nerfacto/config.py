@@ -6,7 +6,7 @@ from nerfstudio.engine.optimizers import AdamOptimizerConfig
 from nerfstudio.engine.schedulers import ExponentialDecaySchedulerConfig
 from nerfstudio.engine.trainer import TrainerConfig
 from nerfstudio.hdr_nerfacto.hdr_nerf_model import HdrNerfactoModelConfig
-from nerfstudio.lantern.datamanager import HDRNerfactoDataManagerConfig, HDRNerfactoWoCrfDataManagerConfig
+from nerfstudio.pandora.datamanager import HDRNerfactoDataManagerConfig, HDRNerfactoWoCrfDataManagerConfig
 from nerfstudio.pipelines.base_pipeline import VanillaPipelineConfig
 
 

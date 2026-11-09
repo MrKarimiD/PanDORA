@@ -46,7 +46,7 @@ docker/download_scenes.sh --dest /data meeting_room  # download one (~5 GB)
 ### 3. Prepare the scene
 
 ```bash
-ns-process-data lantern-openSFM \
+ns-process-data pandora-openSFM \
   --data /data/meeting_room/data/ \
   --output-dir /data/meeting_room/meeting_room_ns/ \
   --metadata /data/meeting_room/sfm/reconstruction.json

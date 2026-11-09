@@ -35,7 +35,7 @@ os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--well_dir', type=str, default='/mnt/workspace/lantern/nerfstudio-HDR/well_at_fast/')
+    parser.add_argument('--well_dir', type=str, default='/mnt/workspace/pandora/nerfstudio-HDR/well_at_fast/')
     parser.add_argument('--fast_dir', type=str, default='/mnt/data/nerfstudio_ds/real_data/meeting_room_openSFM/meeting_room_ns/images/')
     parser.add_argument('--out_dir', type=str, default='./output_well_at_fast/')
     parser.add_argument('--do_linearization', action='store_true')

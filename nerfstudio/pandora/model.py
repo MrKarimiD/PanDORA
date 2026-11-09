@@ -1,5 +1,5 @@
 """
-Lantern Model File
+Pandora Model File
 
 Currently this subclasses the Nerfacto model. Consider subclassing from the base Model.
 """
@@ -16,8 +16,8 @@ from nerfstudio.cameras.rays import RayBundle, RaySamples
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.spatial_distortions import SceneContraction
 from nerfstudio.fields.density_fields import HashMLPDensityField
-from nerfstudio.lantern.field_pano_hdr_nerfacto import PanoHDR_NerfactoField
-from nerfstudio.lantern.renderer import RGBRenderer_HDR
+from nerfstudio.pandora.field import PandoraNerfactoField
+from nerfstudio.pandora.renderer import RGBRenderer_HDR
 from nerfstudio.model_components.losses import (
     MSELoss,
     interlevel_loss,
@@ -43,21 +43,34 @@ from nerfstudio.models.nerfacto import (  # for subclassing Nerfacto model
 )
 from nerfstudio.utils import colormaps
 
+FAST_EXPOSURE_CUTOFF = 0.27 # good for real data (0.1 for synthetic)
+WELL_EXPOSURE_CUTOFF = 0.95 # good for real data (0.9 for synthetic)
+
+WELL_EXPOSURE = 1.0
+FAST_EXPOSURE = 0.004
 
 @dataclass
-class PanoHDRNeRFModelConfig(NerfactoModelConfig):
+class PandoraModelConfig(NerfactoModelConfig):
     """Template Model Configuration.
 
     Add your custom model config parameters here.
     """
 
-    _target: Type = field(default_factory=lambda: PanoHDRNeRFModel)
+    _target: Type = field(default_factory=lambda: PandoraModel)
+
+    appearance_embed_dim: int = 32
+
+    pandora_steps: int = -1
+    """  Define which steps of pandora is going on!! """
+
+    apply_mu_law: bool = True
+    """  Define which steps of pandora is going on!! """
 
 
-class PanoHDRNeRFModel(NerfactoModel):
+class PandoraModel(NerfactoModel):
     """Template Model."""
 
-    config: PanoHDRNeRFModelConfig
+    config: PandoraModelConfig
 
     def populate_modules(self):
         super().populate_modules()
@@ -68,7 +81,7 @@ class PanoHDRNeRFModel(NerfactoModel):
             scene_contraction = SceneContraction(order=float("inf"))
 
         # Fields
-        self.field = PanoHDR_NerfactoField(
+        self.field = PandoraNerfactoField(
             self.scene_box.aabb,
             hidden_dim=self.config.hidden_dim,
             num_levels=self.config.num_levels,
@@ -84,6 +97,7 @@ class PanoHDRNeRFModel(NerfactoModel):
             use_average_appearance_embedding=self.config.use_average_appearance_embedding,
             appearance_embedding_dim=self.config.appearance_embed_dim,
             implementation=self.config.implementation,
+            second_step=(self.config.pandora_steps == 2)
         )
 
         self.density_fns = []
@@ -172,11 +186,21 @@ class PanoHDRNeRFModel(NerfactoModel):
         rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], weights=weights)
         depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)
         accumulation = self.renderer_accumulation(weights=weights)
+        validity = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.VALIDITY], weights=weights)
+        rgb_fast = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB_FAST], weights=weights)
+
+        # if self.config.apply_mu_law:
+        #     u = 5000.
+        #     rgb_fast = torch.exp(rgb_fast * torch.log(torch.tensor(u+1.))) - 1.
+        #     rgb_fast /= u
        
         outputs = {
             "rgb": rgb,
+            "rgb_fast": rgb_fast,
             "accumulation": accumulation,
             "depth": depth,
+            "validity_w": validity[:, 1],
+            "validity_f": validity[:, 0],
         }
         
         if self.config.predict_normals:
@@ -209,10 +233,19 @@ class PanoHDRNeRFModel(NerfactoModel):
     def get_image_metrics_and_images(
         self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
         ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
-        
         gt_rgb = batch["image"].to(self.device)
-        predicted_rgb = outputs["rgb"]  # Blended with background (black if random background)
         
+        if batch["exposure"] != 1.0: # change to == for testing fast-exposed
+            predicted_rgb = outputs["rgb"]  # Blended with background (black if random background)
+        else:
+            # if self.config.pandora_steps == 1:
+            return None, None # comment for testing fast-exposed
+            predicted_rgb = outputs["rgb_fast"]  # Blended with background (black if random background)
+            # if self.config.apply_mu_law:
+            #     from nerfstudio.utils.colormaps import ColormapOptions, Colormaps
+            #     cm = ColormapOptions('inverse-mu')
+            #     predicted_rgb = colormaps.apply_colormap(predicted_rgb, cm)
+            
         gt_rgb = self.renderer_rgb.blend_background(gt_rgb)
         acc = colormaps.apply_colormap(outputs["accumulation"])
         depth = colormaps.apply_depth_colormap(
@@ -221,7 +254,10 @@ class PanoHDRNeRFModel(NerfactoModel):
         )
         gt_rgb = batch["mask"] * gt_rgb
         predicted_rgb = batch["mask"] * predicted_rgb
-        
+        print("Exposure: ", batch['exposure'])
+
+        combined_rgb = torch.cat([gt_rgb, predicted_rgb], dim=1)
+        # print("combined_rgb: ", combined_rgb.shape, "gt_rgb: ", gt_rgb.shape, "predicted_rgb: ", predicted_rgb.shape)
         combined_rgb = predicted_rgb # torch.cat([gt_rgb, predicted_rgb], dim=1)
         combined_acc = torch.cat([acc], dim=1)
         combined_depth = torch.cat([depth], dim=1)
@@ -247,6 +283,7 @@ class PanoHDRNeRFModel(NerfactoModel):
         metrics_dict["lpips"] = float(lpips)
 
         images_dict = {"img": combined_rgb, "accumulation": combined_acc, "depth": combined_depth}
+        # images_dict = {"img": predicted_rgb, "accumulation": combined_acc, "depth": combined_depth}
 
         for i in range(self.config.num_proposal_iterations):
             key = f"prop_depth_{i}"
@@ -257,23 +294,103 @@ class PanoHDRNeRFModel(NerfactoModel):
             images_dict[key] = prop_depth_i
 
         return metrics_dict, images_dict
- 
+
+
+    def hat_weighting_function(self, pixels, zmin, zmax):
+        threshold = 0.5 * (zmin + zmax)
+        weights = torch.zeros(pixels.shape, dtype = pixels.dtype).to(self.device)
+        weights = weights + torch.finfo(torch.float32).eps
+        
+        # mask_lowerbound = zmin <= pixels <= threshold
+        mask_lowerbound = torch.ge(pixels, zmin) & torch.le(pixels, threshold)
+        weights[mask_lowerbound] = 2.0 * (pixels[mask_lowerbound] - zmin)
+
+        # mask_upperbound = threshold <= pixels <= zmax
+        mask_upperbound = torch.ge(pixels, threshold) & torch.le(pixels, zmax)
+        weights[mask_upperbound] = 2.0 * (zmax - pixels[mask_upperbound])
+
+        return weights
+        
+    
+    def cut_weighting_function(self, pixels, exposures):
+        weights = torch.zeros(pixels.shape, dtype = pixels.dtype).to(self.device)
+        
+        well_expo_valids = (exposures == 1.0).repeat(1,pixels.shape[-1])
+        weights[well_expo_valids] = torch.clip(-20.0 * (pixels[well_expo_valids] - WELL_EXPOSURE_CUTOFF) + 1, 0.0, 1.0)
+
+        fast_expo_valids = ~well_expo_valids
+        weights[fast_expo_valids] = torch.clip(10.0 * (pixels[fast_expo_valids] - FAST_EXPOSURE_CUTOFF), 0.0, 1.0)
+
+        return weights
+
+
+    def cut_weighting_for_mask_function(self, exposures):
+        weights_f = torch.zeros(exposures.shape, dtype = exposures.dtype).to(self.device)
+        weights_w = torch.zeros(exposures.shape, dtype = exposures.dtype).to(self.device)
+        
+        well_expo_valids = (exposures == 1.0).repeat(1, 1)
+        weights_w[well_expo_valids] = 1.0
+        
+        fast_expo_valids = ~well_expo_valids
+        weights_f[fast_expo_valids] = 1.0
+
+        return weights_f, weights_w
+    
     
     def get_loss_dict(self, outputs, batch, metrics_dict=None):
         loss_dict = {}
         weights_for_RGB_loss = None
 
         image = batch["image"].to(self.device)
-        
+
+        if "exposure" in batch:
+            exposures_resized = batch["exposure"].view(batch["exposure"].shape[0], 1)
+            # img_uncompress_re_exposed =  exposures_resized * img_uncompress
+            
+        #     # # Debevec Hat weights for Loss
+        #     # # weights_for_loss = self.hat_weighting_function(torch.clip(img_uncompress_re_exposed, 0, 1), 0.0, 1.0)
+            
+        #     # # Clear cut weights for Loss
+        #     # weights_for_RGB_loss = self.cut_weighting_function(torch.clip(img_uncompress_re_exposed, 0, 1), exposures_resized)
+            mask_f_w, mask_w_w = self.cut_weighting_for_mask_function(exposures_resized)
+
         pred_rgb, gt_rgb = self.renderer_rgb.blend_background_for_loss_computation(
             pred_image=outputs["rgb"],
             pred_accumulation=outputs["accumulation"],
             gt_image=image,
         )
+
+        pred_rgb_f, gt_rgb_f = self.renderer_rgb.blend_background_for_loss_computation(
+            pred_image=outputs["rgb_fast"],
+            pred_accumulation=outputs["accumulation"],
+            gt_image=image,
+        )
+
+        # MSE loss for mask with weights
+        # if "saturation_mask" in batch:
+        #     mask_in_float = batch['saturation_mask'].type(torch.float).to(self.device)
+        #     negative_mask_in_float = torch.ones(mask_in_float.shape).to(self.device) - mask_in_float
+        #     loss_mask_fast_expo = (mask_f_w * (( 10.0 * mask_in_float - torch.unsqueeze(outputs["validity_f"], 1)) ** 2)).mean()
+        #     # loss_mask_fast_expo = (mask_f_w * (( mask_in_float - torch.unsqueeze(outputs["validity_f"], 1)) ** 2)).mean()
+        #     loss_mask_well_expo = (mask_w_w * (( mask_in_float - torch.unsqueeze(outputs["validity_w"], 1)) ** 2)).mean()
+        #     loss_dict["validity_loss_well_exposed"] = loss_mask_well_expo # 0.01
+        #     loss_dict["validity_loss_fast_exposure"] = loss_mask_fast_expo
+
+        assert self.config.pandora_steps == 1 or self.config.pandora_steps == 2, "The step of Pandora should be either 1 or 2!! "
         
-        gt_rgb = gt_rgb ** (1 / 2.2)
-        loss_dict["rgb_loss"] = self.rgb_loss(gt_rgb, pred_rgb)
-        
+        if self.config.pandora_steps == 1:
+            loss_dict["rgb_loss"] = self.rgb_loss(gt_rgb, pred_rgb)
+        else:
+            gt_rgb_w = gt_rgb.clone()
+            
+            gt_rgb_f = gt_rgb.clone()
+            if self.config.apply_mu_law:
+                u = 5000.
+                gt_rgb_f = torch.log(1. + u * gt_rgb_f) / torch.log(torch.tensor(1.+u))
+
+            loss_dict["rgb_loss"] = (mask_w_w * ((gt_rgb_w - pred_rgb) ** 2)).mean()
+            loss_dict["rgb_loss_fast"] = (mask_f_w * ((gt_rgb_f - pred_rgb_f) ** 2)).mean()
+
         if self.training:
             loss_dict["interlevel_loss"] = self.config.interlevel_loss_mult * interlevel_loss(
                 outputs["weights_list"], outputs["ray_samples_list"]

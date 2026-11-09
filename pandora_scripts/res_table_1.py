@@ -113,7 +113,7 @@ def calculate_metrics(results_dataset_roots, gt_dataset_root, output_folder, dat
             result_dataset_file = gt_dataset_file.replace(gt_dataset_root, results_dataset_root)
             result_dataset_img_exr = imread(result_dataset_file)[:, :, :3].astype(np.float32)
 
-            mask = np.float32(imageio.imread('lantern_scripts/render_mask.png')) / 255.0
+            mask = np.float32(imageio.imread('pandora_scripts/render_mask.png')) / 255.0
             mask = mask == 1
             mask = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
             gt_dataset_img_exr_for_PSNR = gt_dataset_img_exr[mask]

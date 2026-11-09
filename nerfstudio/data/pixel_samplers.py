@@ -50,8 +50,8 @@ class PixelSamplerConfig(InstantiateConfig):
     is_equirectangular: bool = False
     """List of whether or not camera i is equirectangular."""
 
-    lantern_steps: int = -1
-    """  Define which steps of lantern is going on!! """
+    pandora_steps: int = -1
+    """  Define which steps of pandora is going on!! """
 
 
 class PixelSampler:
@@ -369,7 +369,7 @@ class PixelSampler:
                 image_batch, self.num_rays_per_batch, keep_full_image=self.config.keep_full_image
             )
         elif isinstance(image_batch["image"], torch.Tensor):
-            if "exposure" in image_batch and self.config.lantern_steps != -1:
+            if "exposure" in image_batch and self.config.pandora_steps != -1:
                 if not(self.well_image_batch and self.fast_image_batch):
                     well_ones = (image_batch["exposure"] == 1.0).cpu()
                     fast_ones = ~well_ones
@@ -377,9 +377,9 @@ class PixelSampler:
                         self.well_image_batch[key] = image_batch[key][well_ones]
                         self.fast_image_batch[key] = image_batch[key][fast_ones]
                 
-                assert self.config.lantern_steps == 1 or self.config.lantern_steps == 2, "The step of Lantern should be either 1 or 2!! "
+                assert self.config.pandora_steps == 1 or self.config.pandora_steps == 2, "The step of Pandora should be either 1 or 2!! "
                 
-                if self.config.lantern_steps == 1:
+                if self.config.pandora_steps == 1:
                     well_pixel_batch = self.collate_image_dataset_batch(
                         self.well_image_batch, int(1.0 * self.num_rays_per_batch), keep_full_image=self.config.keep_full_image
                     )

@@ -21,7 +21,7 @@ Open this folder in VS Code Dev Container extension!
 ```
 tmux new -s nerf_studio
 
-docker run -it --rm -v "$CODE_PATH":"$CODE_PATH" -v "$DATA_PATH":"$DATA_PATH" -e CODE_PATH -e DATA_PATH --gpus '"device=0"' -p 8008:8008 -p 6006:6006 lantern_docker:latest /bin/bash
+docker run -it --rm -v "$CODE_PATH":"$CODE_PATH" -v "$DATA_PATH":"$DATA_PATH" -e CODE_PATH -e DATA_PATH --gpus '"device=0"' -p 8008:8008 -p 6006:6006 pandora_docker:latest /bin/bash
 
 cd "$CODE_PATH"
 
@@ -90,7 +90,7 @@ cd ../nerfstudio-HDR
         - Apreture: 2.1
         - Shutter speed: Calculate the 11 shutter speeds and select the closest ones on the app in order from smallest to hightes
             ```
-            python lantern_scripts/calculate_exposures.py --min 0.00004 --max 0.004
+            python pandora_scripts/calculate_exposures.py --min 0.00004 --max 0.004
             ```
         - ISO: 800
         - WB: 3500
@@ -129,12 +129,12 @@ cd ../nerfstudio-HDR
 
     If not calculating metrics:
     ```
-    python lantern_scripts/process_videos_for_sfm.py --input_dir $DATA_PATH/scene/ --shutter_speed 0.004
+    python pandora_scripts/process_videos_for_sfm.py --input_dir $DATA_PATH/scene/ --shutter_speed 0.004
     ```
 
     If calculating **METRICS**:
     ```
-    python lantern_scripts/process_videos_for_sfm.py --input_dir $DATA_PATH/scene/ --shutter_speed 0.004 --gt
+    python pandora_scripts/process_videos_for_sfm.py --input_dir $DATA_PATH/scene/ --shutter_speed 0.004 --gt
     ```
     - Resize GT_exr and GT_jpg images to 3840x1920 with GNU Image Manipulation Program
         - Go to Image > Scale Image
@@ -156,7 +156,7 @@ Check that the camera positions make sense and that the number of clusters is lo
 ## 2. Process data for NeRF
 
 ```
-ns-process-data lantern-openSFM  --data $DATA_PATH/scene/data/  --output-dir $DATA_PATH/scene/scene_ns/ --metadata  $DATA_PATH/scene/sfm/reconstruction.json
+ns-process-data pandora-openSFM  --data $DATA_PATH/scene/data/  --output-dir $DATA_PATH/scene/scene_ns/ --metadata  $DATA_PATH/scene/sfm/reconstruction.json
 ```
 
 For processing existing dataset that used colmap for camera positions:
@@ -166,28 +166,28 @@ ns-process-data images --data $DATA_PATH/garden/images --output-dir $DATA_PATH/g
 
 ## 3. Train NeRF
 
-1. Run step 1 of lantern-nerfacto.
+1. Run step 1 of pandora-nerfacto.
 
     ```
-    ns-train PanDORA --data $DATA_PATH/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.lantern_steps 1 --pipeline.datamanager.pixel-sampler.lantern_steps 1 --max-num-iterations 60000
+    ns-train PanDORA --data $DATA_PATH/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.pandora_steps 1 --pipeline.datamanager.pixel-sampler.pandora_steps 1 --max-num-iterations 60000
     ```
 
     1.1. For better alignment between the well and the fast exposed images, run the following command.
     ```
-    python lantern_scripts/align_fast_to_well.py --input_dir $DATA_PATH/scene/scene_ns/ --config outputs/scene_ns/lantern-nerfacto/2024-08-07_143013/config.yml
+    python pandora_scripts/align_fast_to_well.py --input_dir $DATA_PATH/scene/scene_ns/ --config outputs/scene_ns/pandora-nerfacto/2024-08-07_143013/config.yml
     ```
 
-2. Run step 2 of lantern-nerfacto.
+2. Run step 2 of pandora-nerfacto.
     
     ```
-    ns-train PanDORA --data $DATA_PATH/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.lantern_steps 2 --pipeline.datamanager.pixel-sampler.lantern_steps 2 --load-dir $CODE_PATH/outputs/scene_ns/lantern-nerfacto/2024-06-10_155559/nerfstudio_models --pipeline.model.apply_mu_law False --max-num-iterations 120000
+    ns-train PanDORA --data $DATA_PATH/scene/scene_ns/ --viewer.websocket-port 8008 --pipeline.datamanager.train-num-images-to-sample-from 1800 --pipeline.model.pandora_steps 2 --pipeline.datamanager.pixel-sampler.pandora_steps 2 --load-dir $CODE_PATH/outputs/scene_ns/pandora-nerfacto/2024-06-10_155559/nerfstudio_models --pipeline.model.apply_mu_law False --max-num-iterations 120000
     ```
 
 ## 4. View results
 
 To use the interface:
 ```
-ns-viewer --load-config outputs/scene_ns/lantern-nerfacto/2024-06-06_191338/config.yml --viewer.websocket-port 8008
+ns-viewer --load-config outputs/scene_ns/pandora-nerfacto/2024-06-06_191338/config.yml --viewer.websocket-port 8008
 ```
 - For the right side up:
     - Go to SCENE sub-menu.
@@ -197,19 +197,19 @@ ns-viewer --load-config outputs/scene_ns/lantern-nerfacto/2024-06-06_191338/conf
     - Clic on ADD CAMERA to manualy set camera view points.
     - Clic on RENDER to get the command.
         ```
-        ns-render camera-path --load-config outputs/scene_ns/lantern-nerfacto/2024-06-06_191338/config.yml --camera-path-filename $DATA_PATH/scene/scene_ns/camera_paths/2024-06-06_191338.json --output-path $DATA_PATH/scene/renders/2024-06-06_191338.mp4
+        ns-render camera-path --load-config outputs/scene_ns/pandora-nerfacto/2024-06-06_191338/config.yml --camera-path-filename $DATA_PATH/scene/scene_ns/camera_paths/2024-06-06_191338.json --output-path $DATA_PATH/scene/renders/2024-06-06_191338.mp4
         ```
     - To render a video fast-exposed: add --rendered-output-names rgb_fast
         ```
-        ns-render camera-path --load-config outputs/scene_ns/lantern-nerfacto/2024-06-06_191338/config.yml --camera-path-filename $DATA_PATH/scene/scene_ns/camera_paths/2024-06-06_191338.json --output-path $DATA_PATH/scene/renders/2024-06-06_191338.mp4 --rendered-output-names rgb_fast
+        ns-render camera-path --load-config outputs/scene_ns/pandora-nerfacto/2024-06-06_191338/config.yml --camera-path-filename $DATA_PATH/scene/scene_ns/camera_paths/2024-06-06_191338.json --output-path $DATA_PATH/scene/renders/2024-06-06_191338.mp4 --rendered-output-names rgb_fast
         ```
 
 To get evaluation images (well-exposed):
 ```
-ns-eval --load-config=outputs/scene_ns/lantern-nerfacto/2024-06-17_152246/config.yml --output-path=output.json --render_output_path=$DATA_PATH/scene/eval
+ns-eval --load-config=outputs/scene_ns/pandora-nerfacto/2024-06-17_152246/config.yml --output-path=output.json --render_output_path=$DATA_PATH/scene/eval
 ```
 
-- To get fast-exposed evaluation images, change these two lines in nerfstudio/lantern/model.py:
+- To get fast-exposed evaluation images, change these two lines in nerfstudio/pandora/model.py:
     ```
     line 238: if batch["exposure"] != 1.0: # change to == for testing fast-exposed
     line 242: return None, None # comment for testing fast-exposed
@@ -217,7 +217,7 @@ ns-eval --load-config=outputs/scene_ns/lantern-nerfacto/2024-06-17_152246/config
 
 - To get evaluation images and tensorboard:
     ```
-    ns-eval --load-config=outputs/scene_ns/lantern-nerfacto/2024-06-20_142413/config.yml --output-path=output.json --render_output_path=$DATA_PATH/scene/eval  --vis viewer+tensorboard
+    ns-eval --load-config=outputs/scene_ns/pandora-nerfacto/2024-06-20_142413/config.yml --output-path=output.json --render_output_path=$DATA_PATH/scene/eval  --vis viewer+tensorboard
     ```
 - To load tensorboard results:
     ```
@@ -228,7 +228,7 @@ ns-eval --load-config=outputs/scene_ns/lantern-nerfacto/2024-06-17_152246/config
 ## 4. Calculate metrics
 
 ```
-python lantern_scripts/calculate_metrics.py --input_dir $DATA_PATH/coffee_room2/ --checkpoint $CODE_PATH/outputs/coffee_room2_ns/lantern-nerfacto/2025-01-22_194346/ --metric_name unaligned
+python pandora_scripts/calculate_metrics.py --input_dir $DATA_PATH/coffee_room2/ --checkpoint $CODE_PATH/outputs/coffee_room2_ns/pandora-nerfacto/2025-01-22_194346/ --metric_name unaligned
 ```
 
 and point #8
@@ -237,40 +237,40 @@ or
 
 1. Get ground truth transformations:
     ```
-    ns-process-data lantern-GT-HDR --data $DATA_PATH/coffee_room2/coffee_room2_ns/ --output-dir $DATA_PATH/coffee_room2/metrics --metadata $DATA_PATH/coffee_room2/sfm/reconstruction.json --checkpoint $CODE_PATH/outputs/coffee_room2_ns/lantern-nerfacto/2025-01-22_194346/
+    ns-process-data pandora-GT-HDR --data $DATA_PATH/coffee_room2/coffee_room2_ns/ --output-dir $DATA_PATH/coffee_room2/metrics --metadata $DATA_PATH/coffee_room2/sfm/reconstruction.json --checkpoint $CODE_PATH/outputs/coffee_room2_ns/pandora-nerfacto/2025-01-22_194346/
     ```
 
 2. Render panos at ground truth positions for well and fast exposed:
     ```
-    ns-render camera-path --load-config $CODE_PATH/outputs/coffee_room2_ns/lantern-nerfacto/2025-01-22_194346/config.yml --camera-path-filename $DATA_PATH/coffee_room2/metrics/GT_transforms.json --output-path $DATA_PATH/coffee_room2/metrics/renders/unaligned --output-format images
+    ns-render camera-path --load-config $CODE_PATH/outputs/coffee_room2_ns/pandora-nerfacto/2025-01-22_194346/config.yml --camera-path-filename $DATA_PATH/coffee_room2/metrics/GT_transforms.json --output-path $DATA_PATH/coffee_room2/metrics/renders/unaligned --output-format images
     ```
     ```
-    ns-render camera-path --load-config $CODE_PATH/outputs/coffee_room2_ns/lantern-nerfacto/2025-01-22_194346/config.yml --camera-path-filename $DATA_PATH/coffee_room2/metrics/GT_transforms.json --output-path $DATA_PATH/coffee_room2/metrics/renders/unaligned_fast --output-format images --rendered_output_names rgb_fast
+    ns-render camera-path --load-config $CODE_PATH/outputs/coffee_room2_ns/pandora-nerfacto/2025-01-22_194346/config.yml --camera-path-filename $DATA_PATH/coffee_room2/metrics/GT_transforms.json --output-path $DATA_PATH/coffee_room2/metrics/renders/unaligned_fast --output-format images --rendered_output_names rgb_fast
     ```
 
 3. Combine both well and fast exposed panos:
     ```
-    python lantern_scripts/combine.py --well_dir $DATA_PATH/coffee_room2/metrics/renders/unaligned/ --fast_dir $DATA_PATH/coffee_room2/metrics/renders/unaligned_fast/ --out_dir $DATA_PATH/coffee_room2/metrics/renders/unaligned_lin/ --experiment_location $DATA_PATH/coffee_room2/data/ --do_linearization
+    python pandora_scripts/combine.py --well_dir $DATA_PATH/coffee_room2/metrics/renders/unaligned/ --fast_dir $DATA_PATH/coffee_room2/metrics/renders/unaligned_fast/ --out_dir $DATA_PATH/coffee_room2/metrics/renders/unaligned_lin/ --experiment_location $DATA_PATH/coffee_room2/data/ --do_linearization
     ```
 
 4. Make sure the panos from renders have the same names as the GT panos.
 
 5. Calculate PSNR, SSIM and LPIPS:
     ```
-    python lantern_scripts/ldr_res.py --gt_dir $DATA_PATH/coffee_room2/GT/GT_exr/  --data_dir $DATA_PATH/coffee_room2/metrics/renders/unaligned_lin/
+    python pandora_scripts/ldr_res.py --gt_dir $DATA_PATH/coffee_room2/GT/GT_exr/  --data_dir $DATA_PATH/coffee_room2/metrics/renders/unaligned_lin/
     ```
 
 5. Generate GT and results renders with blender:
     ```
-    blender --background lantern_scripts/scene_new.blend -P lantern_scripts/hdr_blender.py -- $DATA_PATH/coffee_room2/GT/GT_exr/ $DATA_PATH/coffee_room2/GT/GT_exr_renders/
+    blender --background pandora_scripts/scene_new.blend -P pandora_scripts/hdr_blender.py -- $DATA_PATH/coffee_room2/GT/GT_exr/ $DATA_PATH/coffee_room2/GT/GT_exr_renders/
     ```
     ```
-    blender --background lantern_scripts/scene_new.blend -P lantern_scripts/hdr_blender.py -- $DATA_PATH/coffee_room2/metrics/renders/unaligned_lin/ $DATA_PATH/coffee_room2/metrics/renders/unaligned_lin_renders/
+    blender --background pandora_scripts/scene_new.blend -P pandora_scripts/hdr_blender.py -- $DATA_PATH/coffee_room2/metrics/renders/unaligned_lin/ $DATA_PATH/coffee_room2/metrics/renders/unaligned_lin_renders/
     ```
 
 6. Calculate si-RMSE, RMSE, RGB ang. and PSNR (LDR r.). Need to change values in code:
     ```
-    python lantern_scripts/res_table_1.py
+    python pandora_scripts/res_table_1.py
     ```
 
 7. Convert exr panos to hdr:

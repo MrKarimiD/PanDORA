@@ -27,7 +27,7 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from lantern_scripts.extract_linearized import apply_correction
+from pandora_scripts.extract_linearized import apply_correction
 from nerfstudio.process_data import colmap_utils, equirect_utils, process_data_utils
 from nerfstudio.process_data.colmap_converter_to_nerfstudio_dataset import (
     ColmapConverterToNerfstudioDataset,
@@ -37,7 +37,7 @@ from nerfstudio.utils.rich_utils import CONSOLE
 
 
 @dataclass
-class LanternImagesToNerfstudioDataset(ColmapConverterToNerfstudioDataset):
+class PandoraImagesToNerfstudioDataset(ColmapConverterToNerfstudioDataset):
     """Process images into a nerfstudio dataset.
 
     1. Scales images to a specified size.

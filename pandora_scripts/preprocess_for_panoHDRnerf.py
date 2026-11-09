@@ -34,7 +34,7 @@ if __name__ == '__main__':
     os.makedirs(left_e1_ldr2hdr_high_res_left_e1_dir)
 
     print("Linearizing the JPEGs...")
-    subprocess.run(["conda", "run", "-n", "nerfstudio", "python", "lantern_scripts/linearize_jpgs.py", 
+    subprocess.run(["conda", "run", "-n", "nerfstudio", "python", "pandora_scripts/linearize_jpgs.py", 
     "--data_dir", left_e1_dir, 
     "--out_dir", left_e1_linearized_dir, 
     ], check=True)
@@ -46,14 +46,14 @@ if __name__ == '__main__':
     print(result)
 
     print("LDR2HDR Network on the data")
-    subprocess.run(["conda", "run", "-n", "lanet_env_37", "OPENCV_IO_ENABLE_OPENEXR=true", "python", "/mnt/workspace/lantern/PanoHDR-NeRF/LANet/test.py", 
-    "--ckpt", "/mnt/workspace/lantern/PanoHDR-NeRF/LANet/epoch_128.pt",
+    subprocess.run(["conda", "run", "-n", "lanet_env_37", "OPENCV_IO_ENABLE_OPENEXR=true", "python", "/mnt/workspace/pandora/PanoHDR-NeRF/LANet/test.py", 
+    "--ckpt", "/mnt/workspace/pandora/PanoHDR-NeRF/LANet/epoch_128.pt",
     "--test_dir", left_e1_linearized_resized_dir,
     "--output_dir", left_e1_ldr2hdr_dir, 
     ], check=True)
     
     print("Combining the LDRs and HDRs...")
-    subprocess.run(["conda", "run", "-n", "nerfstudio", "python", "lantern_scripts/combine_LDR_HDR.py", 
+    subprocess.run(["conda", "run", "-n", "nerfstudio", "python", "pandora_scripts/combine_LDR_HDR.py", 
     "--ldr_dir", left_e1_linearized_dir, 
     "--hdr_dir", left_e1_ldr2hdr_dir, 
     "--output_dir", left_e1_ldr2hdr_high_res_left_e1_dir, 

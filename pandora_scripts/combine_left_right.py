@@ -119,7 +119,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--left_dir', type=str, default='/mnt/workspace/share_w_Junming/Dual_Cameras/left/')
     parser.add_argument('--right_dir', type=str, default='/mnt/workspace/share_w_Junming/Dual_Cameras/right/')
-    parser.add_argument('--out_dir', type=str, default='/mnt/workspace/share_w_Junming/Dual_Cameras/lantern-HDR/')
+    parser.add_argument('--out_dir', type=str, default='/mnt/workspace/share_w_Junming/Dual_Cameras/pandora-HDR/')
     parser.add_argument('--has_exposure', action='store_true')
     parser.add_argument('--exposure1', type=float, default=1.0)
     parser.add_argument('--exposure2', type=float, default=0.009)

@@ -1,8 +1,8 @@
 
 export scene_name=my_apartment_ns
-export output_dir=renders/${scene_name}/lantern-nerfacto/video_images
+export output_dir=renders/${scene_name}/pandora-nerfacto/video_images
 export root_dir=data/${scene_name}
-export model_path=outputs/${scene_name}/lantern-nerfacto/2024-05-16_212421/config.yml
+export model_path=outputs/${scene_name}/pandora-nerfacto/2024-05-16_212421/config.yml
 
 # camera paths
 # video ground: data/Henry_Gagnon_blue_et_rouge_ns/camera_paths/2024-05-16_015020.json
@@ -78,9 +78,9 @@ python video_rendering_code/combine.py --well_dir $output_dir/${camera_path_name
 
 
 export scene_name=meeting_room_ns
-export output_dir=renders/${scene_name}/lantern-nerfacto/video_images
+export output_dir=renders/${scene_name}/pandora-nerfacto/video_images
 export root_dir=data/${scene_name}
-export model_path=outputs/${scene_name}/lantern-nerfacto/2024-05-16_201826/config.yml
+export model_path=outputs/${scene_name}/pandora-nerfacto/2024-05-16_201826/config.yml
 
 # meeting room
 # export camera_path_name=2024-05-16_201826_persp
@@ -101,14 +101,14 @@ ns-render camera-path --load-config $model_path --camera-path-filename $camera_p
 ns-render camera-path --load-config $model_path --camera-path-filename $camera_path --output-path $output_dir/${camera_path_name}/fast-expo/  --output-format images  --rendered_output_names rgb_fast
 
 echo "Combine two exposures"
-python lantern_scripts/combine.py --well_dir $output_dir/${camera_path_name}/well-expo/ --fast_dir $output_dir/${camera_path_name}/fast-expo/ --out_dir $output_dir/${camera_path_name}/combined/ --do_linearization --experiment_location $root_dir
+python pandora_scripts/combine.py --well_dir $output_dir/${camera_path_name}/well-expo/ --fast_dir $output_dir/${camera_path_name}/fast-expo/ --out_dir $output_dir/${camera_path_name}/combined/ --do_linearization --experiment_location $root_dir
 
 # Fig. 5 - ABO objects
 
 export scene_name=LVSN_LAB_OpenSFM
-export output_dir=renders/${scene_name}/lantern-nerfacto/video_images
+export output_dir=renders/${scene_name}/pandora-nerfacto/video_images
 export root_dir=data/${scene_name}
-export model_path=outputs/${scene_name}/lantern-nerfacto/step_2/config.yml
+export model_path=outputs/${scene_name}/pandora-nerfacto/step_2/config.yml
 
 # export camera_path_name=persp1
 export camera_path_name=persp2
@@ -122,7 +122,7 @@ ns-render camera-path --load-config $model_path --camera-path-filename $camera_p
 ns-render camera-path --load-config $model_path --camera-path-filename $camera_path --output-path $output_dir/${camera_path_name}/fast-expo/  --output-format images  --rendered_output_names rgb_fast
 
 echo "Combine two exposures"
-python lantern_scripts/combine.py --well_dir $output_dir/${camera_path_name}/well-expo/ --fast_dir $output_dir/${camera_path_name}/fast-expo/ --out_dir $output_dir/${camera_path_name}/combined/ --do_linearization --experiment_location $root_dir
+python pandora_scripts/combine.py --well_dir $output_dir/${camera_path_name}/well-expo/ --fast_dir $output_dir/${camera_path_name}/fast-expo/ --out_dir $output_dir/${camera_path_name}/combined/ --do_linearization --experiment_location $root_dir
 
 ######### Render videos ############
 
@@ -134,10 +134,10 @@ export scene_name=lab_downstairs_ns
 export model_type=hdr-nerfacto
 # export model_type=ldr-nerfacto
 # export model_type=panoHDR-nerfacto
-# export model_type=lantern-nerfacto
+# export model_type=pandora-nerfacto
 
 # export model_path=outputs/${scene_name}/${model_type}/2024-05-18_143132/config.yml
-# export model_path=outputs/${scene_name}/lantern-nerfacto/step_1/config.yml
+# export model_path=outputs/${scene_name}/pandora-nerfacto/step_1/config.yml
 # export model_path=outputs/${scene_name}/${model_type}/2024-05-18_145217/config.yml
 export model_path=outputs/${scene_name}/${model_type}/2024-05-18_012547/config.yml
 
@@ -154,11 +154,11 @@ ns-render camera-path --load-config $model_path --camera-path-filename $camera_p
 
 # panoHDR-nerfacto
 # ns-render camera-path --load-config $model_path --camera-path-filename $camera_path --output-path $output_dir/${camera_path_name}/pano_gamma_compressed/  --output-format images --image-format exr
-# python lantern_scripts/un_gamma.py --data_dir $output_dir/${camera_path_name}/pano_gamma_compressed/ --out_dir $output_dir/${camera_path_name}/combined/
+# python pandora_scripts/un_gamma.py --data_dir $output_dir/${camera_path_name}/pano_gamma_compressed/ --out_dir $output_dir/${camera_path_name}/combined/
 
 echo "Combine two exposures"
-python lantern_scripts/combine.py --well_dir $output_dir/${camera_path_name}/well-expo/ --fast_dir $output_dir/${camera_path_name}/fast-expo/ --out_dir $output_dir/${camera_path_name}/combined/ --do_linearization --experiment_location $root_dir
-# python lantern_scripts/combine.py --well_dir $output_dir/${camera_path_name}/well-expo/ --out_dir $output_dir/${camera_path_name}/combined/ --do_linearization --experiment_location $root_dir
+python pandora_scripts/combine.py --well_dir $output_dir/${camera_path_name}/well-expo/ --fast_dir $output_dir/${camera_path_name}/fast-expo/ --out_dir $output_dir/${camera_path_name}/combined/ --do_linearization --experiment_location $root_dir
+# python pandora_scripts/combine.py --well_dir $output_dir/${camera_path_name}/well-expo/ --out_dir $output_dir/${camera_path_name}/combined/ --do_linearization --experiment_location $root_dir
 
 
 # for Yannick
@@ -174,12 +174,12 @@ python video_rendering_code/upload_online.py $output_dir/${camera_path_name}/com
 blender --background video_rendering_code/scene_new.blend -P video_rendering_code/hdr_blender.py -- $output_dir/${camera_path_name}/combined/ $output_dir/${camera_path_name}/render/
 
 mkdir $output_dir/${camera_path_name}/render_tonemapped
-python lantern_scripts/tonemap.py --data_dir $output_dir/${camera_path_name}/render/ --out_dir $output_dir/${camera_path_name}/render_tonemapped
-python lantern_scripts/mp4_maker.py --input_Addr $output_dir/${camera_path_name}/render_tonemapped --out_file $output_dir/${camera_path_name}/video_render.mp4
+python pandora_scripts/tonemap.py --data_dir $output_dir/${camera_path_name}/render/ --out_dir $output_dir/${camera_path_name}/render_tonemapped
+python pandora_scripts/mp4_maker.py --input_Addr $output_dir/${camera_path_name}/render_tonemapped --out_file $output_dir/${camera_path_name}/video_render.mp4
 
 ##
 
 export scene_name=meeting_room_ns
 
-export model_path=outputs/${scene_name}/lantern-nerfacto/2024-05-16_201826/config.yml
+export model_path=outputs/${scene_name}/pandora-nerfacto/2024-05-16_201826/config.yml
 

@@ -57,7 +57,7 @@ from nerfstudio.engine.trainer import TrainerConfig
 from nerfstudio.field_components.temporal_distortions import TemporalDistortionKind
 from nerfstudio.fields.sdf_field import SDFFieldConfig
 from nerfstudio.hdr_nerfacto.config import get_hdr_nerfacto_config
-from nerfstudio.lantern.config import Get_lantern_config
+from nerfstudio.pandora.config import Get_pandora_config
 from nerfstudio.models.depth_nerfacto import DepthNerfactoModelConfig
 from nerfstudio.models.generfacto import GenerfactoModelConfig
 from nerfstudio.models.instant_ngp import InstantNGPModelConfig
@@ -72,7 +72,7 @@ from nerfstudio.pipelines.base_pipeline import VanillaPipelineConfig
 from nerfstudio.pipelines.dynamic_batch import DynamicBatchPipelineConfig
 from nerfstudio.plugins.registry import discover_methods
 
-from nerfstudio.lantern.config import Get_lantern_config, Get_PanoHDR_Nerfacto_config
+from nerfstudio.pandora.config import Get_pandora_config, Get_PanoHDR_Nerfacto_config
 
 method_configs: Dict[str, TrainerConfig] = {}
 descriptions = {
@@ -131,7 +131,7 @@ method_configs["nerfacto"] = TrainerConfig(
     vis="viewer",
 )
 
-method_configs["PanDORA"] = Get_lantern_config()
+method_configs["PanDORA"] = Get_pandora_config()
 method_configs["panoHDR-nerfacto"] = Get_PanoHDR_Nerfacto_config()
 
 method_configs["hdr-nerfacto"] = get_hdr_nerfacto_config(use_crf=True, clip_before_accumulation=False)

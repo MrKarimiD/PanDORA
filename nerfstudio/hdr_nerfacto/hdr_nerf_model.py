@@ -38,7 +38,7 @@ from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.spatial_distortions import SceneContraction
 from nerfstudio.fields.density_fields import HashMLPDensityField
 from nerfstudio.hdr_nerfacto.hdr_nerf_field import HdrNerfactoField
-from nerfstudio.lantern.renderer import RGBRenderer_HDR
+from nerfstudio.pandora.renderer import RGBRenderer_HDR
 from nerfstudio.model_components.losses import (
     MSELoss,
     distortion_loss,

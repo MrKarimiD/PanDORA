@@ -3,7 +3,7 @@
 set -u
 
 DATA_ROOT="/mnt/data/nerfstudio_ds/real_data"
-SCRIPT="lantern_scripts/calculate_metrics_fast.py"
+SCRIPT="pandora_scripts/calculate_metrics_fast.py"
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <metric_name> [data_root]"

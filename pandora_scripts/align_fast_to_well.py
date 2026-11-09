@@ -272,7 +272,7 @@ def copy_images(src_folder, dest_folder):
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--input_dir", type=str, default="/mnt/data/scene/scene_ns/", help="Nerfstudio directory of the scene")
-    argparser.add_argument("--config", type=str, default="outputs/scene_ns/lantern-nerfacto/2024-06-20_142413/config.yml", help="Nerfstudio config file")
+    argparser.add_argument("--config", type=str, default="outputs/scene_ns/pandora-nerfacto/2024-06-20_142413/config.yml", help="Nerfstudio config file")
     argparser.add_argument("--no_render", action='store_true', default=False, help="Doesn't render images for alignment if flag is present")
     argparser.add_argument("--no_copy", action='store_true', default=False, help="Doesn't copy the original data if flag is present. Use if already copied.")
     argparser.add_argument("--visualize_contours", action='store_true', default=False, help="Saves images of the detected/matched contours for debugging if flag is present.")

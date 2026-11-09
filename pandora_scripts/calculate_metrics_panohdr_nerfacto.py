@@ -4,13 +4,12 @@ import os
 import shutil
 import sys
 
-
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--input_dir", type=str, required=True, default="/mnt/data/scene/scene_ns/",
                            help="Directory containing input data (e.g. videos, GT, etc.)")
     argparser.add_argument("--checkpoint", type=str, required=True,
-                           default="/mnt/workspace/lantern/nerfstudio-HDR/outputs/coffee_room2_ns/lantern-nerfacto/2025-01-22_194346/",
+                           default="/mnt/workspace/pandora/nerfstudio-HDR/outputs/coffee_room2_ns/pandora-nerfacto/2025-01-22_194346/",
                            help="Directory containing training data (e.g. config.yml and checkpoint info)")
     argparser.add_argument("--metric_name", type=str, required=True, default="unaligned",
                            help="Name of the method, used for naming output directories")
@@ -23,13 +22,9 @@ if __name__ == '__main__':
     metrics_dir = os.path.join(args.input_dir, "metrics")
     renders_dir = os.path.join(metrics_dir, "images")
     
-    renders_well = os.path.join(renders_dir, args.metric_name)
-    if os.path.exists(renders_well):
-        shutil.rmtree(renders_well)
-    
-    renders_fast = os.path.join(renders_dir, args.metric_name + "_fast")
-    if os.path.exists(renders_fast):
-        shutil.rmtree(renders_fast)
+    renders_compressed = os.path.join(renders_dir, args.metric_name + "_compressed")
+    if os.path.exists(renders_compressed):
+        shutil.rmtree(renders_compressed)
     
     renders_lin = os.path.join(renders_dir, args.metric_name + "_lin")
     if os.path.exists(renders_lin):
@@ -55,7 +50,7 @@ if __name__ == '__main__':
     # 1. Get ground truth transformations:
     print("Running ns-process-data to get GT transformations...")
     subprocess.run([
-        "ns-process-data", "lantern-GT-HDR",
+        "ns-process-data", "pandora-GT-HDR",
         "--data", args.input_dir,
         "--output-dir", metrics_dir,
         "--metadata", os.path.join(args.input_dir, "sfm/reconstruction.json"),
@@ -63,31 +58,22 @@ if __name__ == '__main__':
     ], check=True)
 
     # 2. Render panos at GT positions for well and fast exposures:
-    print("Rendering well-exposed panos...")
+    print("Rendering HDR panos...")
     subprocess.run([
         "ns-render", "camera-path",
         "--load-config", os.path.join(args.checkpoint, "config.yml"),
         "--camera-path-filename", os.path.join(metrics_dir, "GT_transforms.json"),
-        "--output-path", renders_well,
-        "--output-format", "images"
+        "--output-path", renders_compressed,
+        "--output-format", "images",
+        "--image-format", "exr"
     ], check=True)
 
-    # print("Rendering fast-exposed panos...")
-    # subprocess.run([
-    #     "ns-render", "camera-path",
-    #     "--load-config", os.path.join(args.checkpoint, "config.yml"),
-    #     "--camera-path-filename", os.path.join(metrics_dir, "GT_transforms.json"),
-    #     "--output-path", renders_fast,
-    #     "--output-format", "images",
-    #     "--rendered_output_names", "rgb_fast"
-    # ], check=True)
-
     # 3. Combine both well and fast exposed panos:
-    print("Linearizing the frames...")
+    print("Ungamma renders...")
     subprocess.run([
-        "python", "lantern_scripts/linearize_jpgs.py",
-        "--data_dir", renders_well + "/",
-        "--out_dir", renders_lin + "/",
+        "python", "pandora_scripts/un_gamma.py",
+        "--data_dir", renders_compressed + "/",
+        "--out_dir", renders_lin + "/"
     ], check=True)
 
     # 4. Rename the render files:
@@ -97,15 +83,13 @@ if __name__ == '__main__':
     total = len(render_files)
     number_strings = [str(i) for i in range(1, total + 1)]
     lex_order = sorted(number_strings)
-    # import pdb; pdb.set_trace()
     for old_path, num in zip(render_files, lex_order):
         new_filename = f"GT{num}.exr"
         new_path = os.path.join(renders_lin, new_filename)
         old_path = os.path.join(renders_lin, old_path)
         shutil.move(old_path, new_path)
         print(f"Renamed {os.path.basename(old_path)} to {new_filename}")
-    # import pdb; pdb.set_trace()
-
+    
     print("Step 4b: Verifying filename consistency between GT and renders...")
     try:
         gt_files = set(f for f in os.listdir(gt_exr) if f.endswith('.exr'))
@@ -127,7 +111,7 @@ if __name__ == '__main__':
     # 5. Calculate PSNR, SSIM and LPIPS:
     print("Calculating LDR metrics (PSNR, SSIM, LPIPS)...")
     subprocess.run([
-        "python", "lantern_scripts/ldr_res.py",
+        "python", "pandora_scripts/ldr_res.py",
         "--gt_dir", gt_exr + "/",
         "--data_dir", renders_lin + "/"
     ], check=True)
@@ -141,8 +125,8 @@ if __name__ == '__main__':
     if not rendered_files_exist:
         print("Rendering GT images with Blender...")
         subprocess.run([
-            "blender", "--background", "lantern_scripts/scene_new.blend",
-            "-P", "lantern_scripts/hdr_blender.py", "--",
+            "blender", "--background", "pandora_scripts/scene_new.blend",
+            "-P", "pandora_scripts/hdr_blender.py", "--",
             os.path.join(gt_exr, ""), os.path.join(gt_exr_renders, "")
         ], check=True)
     else:
@@ -150,15 +134,15 @@ if __name__ == '__main__':
 
     print("Rendering result images with Blender...")
     subprocess.run([
-        "blender", "--background", "lantern_scripts/scene_new.blend",
-        "-P", "lantern_scripts/hdr_blender.py", "--",
+        "blender", "--background", "pandora_scripts/scene_new.blend",
+        "-P", "pandora_scripts/hdr_blender.py", "--",
         renders_lin + "/", lin_renders + "/"
     ], check=True)
 
     # 7. Calculate si-RMSE, RMSE, RGB angular error and PSNR (LDR rendered):
     print("Calculating additional metrics (si-RMSE, RMSE, angular error, PSNR)...")
     subprocess.run([
-        "python", "lantern_scripts/res_table_1.py",
+        "python", "pandora_scripts/res_table_1.py",
         "--results_dataset_roots", lin_renders + "/",
         "--gt_dataset_root", gt_exr_renders + "/",
         "--output_folder", metrics_dir + "/results_table/",
@@ -168,12 +152,12 @@ if __name__ == '__main__':
     # 8. Convert EXR panos to HDR format:
     print("Converting EXR panos to HDR...")
     subprocess.run([
-        "python", "lantern_scripts/exr2hdr.py",
+        "python", "pandora_scripts/exr2hdr.py",
         "--hdr_dir", renders_lin,
         "--output_dir", renders_lin_HDR
     ], check=True)
     subprocess.run([
-        "python", "lantern_scripts/exr2hdr.py",
+        "python", "pandora_scripts/exr2hdr.py",
         "--hdr_dir", gt_exr,
         "--output_dir", gt_hdr
     ], check=True)
@@ -181,22 +165,22 @@ if __name__ == '__main__':
     # 9. Convert EXR panos to LDR format:
     print("Converting EXR panos to LDR visualization...")
     subprocess.run([
-        "python", "lantern_scripts/tonemap.py",
+        "python", "pandora_scripts/tonemap.py",
         "--data_dir", renders_lin,
         "--out_dir", renders_lin
     ], check=True)
     subprocess.run([
-        "python", "lantern_scripts/tonemap.py",
+        "python", "pandora_scripts/tonemap.py",
         "--data_dir", gt_exr,
         "--out_dir", gt_exr
     ], check=True)
     subprocess.run([
-        "python", "lantern_scripts/tonemap.py",
+        "python", "pandora_scripts/tonemap.py",
         "--data_dir", lin_renders,
         "--out_dir", lin_renders
     ], check=True)
     subprocess.run([
-        "python", "lantern_scripts/tonemap.py",
+        "python", "pandora_scripts/tonemap.py",
         "--data_dir", gt_exr_renders,
         "--out_dir", gt_exr_renders
     ], check=True)
@@ -204,7 +188,7 @@ if __name__ == '__main__':
      # 9. Convert EXR panos to LDR format:
     print("Preparing the HTML visualization...")
     subprocess.run([
-        "python", "lantern_scripts/results_visualization.py",
+        "python", "pandora_scripts/results_visualization.py",
         "--gt_dir", gt_exr,
         "--gt_render_dir", gt_exr_renders,
         "--pandora_dir", renders_lin,

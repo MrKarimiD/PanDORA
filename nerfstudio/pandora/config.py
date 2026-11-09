@@ -12,13 +12,13 @@ from nerfstudio.data.dataparsers.nerfstudio_dataparser import NerfstudioDataPars
 from nerfstudio.engine.optimizers import AdamOptimizerConfig
 from nerfstudio.engine.schedulers import ExponentialDecaySchedulerConfig
 from nerfstudio.engine.trainer import TrainerConfig
-from nerfstudio.lantern.datamanager import HDRVanillaDataManagerConfig
-from nerfstudio.lantern.model import LanternModelConfig
-from nerfstudio.lantern.model_pano_hdr_nerfacto import PanoHDRNeRFModelConfig
+from nerfstudio.pandora.datamanager import HDRVanillaDataManagerConfig
+from nerfstudio.pandora.model import PandoraModelConfig
+from nerfstudio.pandora.model_pano_hdr_nerfacto import PanoHDRNeRFModelConfig
 from nerfstudio.pipelines.base_pipeline import VanillaPipelineConfig
 
 
-def Get_lantern_config():
+def Get_pandora_config():
     return TrainerConfig(
     method_name="PanDORA",
     steps_per_eval_batch=500,
@@ -37,7 +37,7 @@ def Get_lantern_config():
             ),
             # camera_optimizer=None,
         ),
-        model=LanternModelConfig(eval_num_rays_per_chunk=1 << 15),
+        model=PandoraModelConfig(eval_num_rays_per_chunk=1 << 15),
     ),
     optimizers={
         "proposal_networks": {

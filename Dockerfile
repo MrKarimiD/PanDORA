@@ -198,7 +198,7 @@ RUN python3.10 -m pip install --no-cache-dir \
 # Kept last so earlier installs can't override these pins.
 RUN python3.10 -m pip install --no-cache-dir "numpy<2" "viser==0.0.16"
 
-# Make the repo root importable so `lantern_scripts` (used by nerfstudio's lantern
+# Make the repo root importable so `pandora_scripts` (used by nerfstudio's pandora
 # processors and PanDORA config) resolves without a manual `export PYTHONPATH`.
 # The host repo is mounted onto this same path at runtime.
 ENV PYTHONPATH=/home/user/nerfstudio

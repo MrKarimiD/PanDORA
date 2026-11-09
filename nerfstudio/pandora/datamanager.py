@@ -1,5 +1,5 @@
 """
-Lantern HDR DataManager
+Pandora HDR DataManager
 """
 
 from dataclasses import dataclass, field
@@ -9,7 +9,7 @@ from nerfstudio.data.datamanagers.base_datamanager import (
     VanillaDataManager,
     VanillaDataManagerConfig,
 )
-from nerfstudio.lantern.dataset import (
+from nerfstudio.pandora.dataset import (
     HDRInputDataset,
     HDRNerfactoInputDataset,
     HDRNerfactoWoCrfInputDataset,
