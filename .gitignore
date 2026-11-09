@@ -220,3 +220,6 @@ metrics_sheet.csv
 /test.png
 lab_downstairs_*.json
 only_LDR-nerf.json
+
+# Internal experiment notes (not for release)
+experiments.md
