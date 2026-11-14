@@ -177,6 +177,13 @@ ns-process-data images --data $DATA_PATH/garden/images --output-dir $DATA_PATH/g
     python pandora_scripts/align_fast_to_well.py --input_dir $DATA_PATH/scene/scene_ns/ --config outputs/scene_ns/pandora-nerfacto/2024-08-07_143013/config.yml
     ```
 
+    This also writes `alignment_report.csv` (one row per fast view: aligned, no_lights or failed, with the homography translation).
+
+    1.2. (Optional) Filter badly aligned views. Views whose homography translation is above median + 3 sigma_MAD are flagged, and a variant of the dataset is built next to the original (symlinks, the original folder is not modified). Use `--policy drop_flagged` to remove flagged views from stage two, or `--policy unaligned_flagged` to use them without alignment. Then pass the variant folder as `--data` in step 2.
+    ```
+    python pandora_scripts/apply_alignment_policy.py --input_dir $DATA_PATH/scene/scene_ns/ --output_dir $DATA_PATH/scene/scene_ns_drop/ --policy drop_flagged
+    ```
+
 2. Run step 2 of pandora-nerfacto.
     
     ```

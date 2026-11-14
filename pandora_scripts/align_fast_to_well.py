@@ -6,8 +6,12 @@ import json
 import subprocess
 import argparse
 import shutil
+import csv
 
 class ContourTooSmallException(Exception):
+    pass
+
+class AlignmentFailed(Exception):
     pass
 
 class Image:
@@ -191,14 +195,17 @@ class AlignImages:
         # Expose the SIFT/BFMatcher point correspondences (pre-RANSAC) for visualization.
         self.well_points_combined = well_points_combined
         self.fast_points_combined = fast_points_combined
-        if len(well_points_combined) >= 4:
-            well_points = np.float32(well_points_combined)
-            fast_points = np.float32(fast_points_combined)
-            H, mask = cv2.findHomography(fast_points, well_points, cv2.RANSAC, 5.0)
-            warped_image = cv2.warpPerspective(self.fast_image.image, H, (self.image_width, self.image_height))
-        else:
-            # print("Not enough points for homography.")
-            pass
+        self.num_points = len(well_points_combined)
+        self.num_inliers = 0
+        if len(well_points_combined) < 4:
+            raise AlignmentFailed(f"not enough points for a homography ({len(well_points_combined)})")
+        well_points = np.float32(well_points_combined)
+        fast_points = np.float32(fast_points_combined)
+        H, mask = cv2.findHomography(fast_points, well_points, cv2.RANSAC, 5.0)
+        if H is None:
+            raise AlignmentFailed("findHomography returned no solution")
+        self.num_inliers = int(mask.sum()) if mask is not None else 0
+        warped_image = cv2.warpPerspective(self.fast_image.image, H, (self.image_width, self.image_height))
         return warped_image, H
 
 def save_transformation(json_path, right_filename, matrix):
@@ -259,6 +266,33 @@ def create_fast_transforms_json(transforms_json_path, dataparser_transforms_path
     with open(fast_transforms_json_path, 'w') as f:
         json.dump(camera_dict, f, indent=4)
 
+def right_names_in_render_order(transforms_json_path):
+    """Right (fast) image filenames in the same order as create_fast_transforms_json renders them.
+
+    The renders are numbered 00001.png, 00002.png, ... following frames[N:2N] of transforms.json,
+    so the i-th right image must be the i-th of those frames (not the i-th entry of os.listdir,
+    whose order is arbitrary).
+    """
+    with open(transforms_json_path, 'r') as f:
+        transforms = json.load(f)
+    number_of_frames = int(len(transforms['frames'])/2)
+    names = []
+    for frame in transforms['frames'][number_of_frames:2*number_of_frames]:
+        name = os.path.basename(frame['file_path']).replace('_linear.exr', '.png')
+        if not name.endswith('.png'):
+            name = os.path.splitext(name)[0] + '.png'
+        names.append(name)
+    assert all(n.startswith("right") for n in names), "Expected the second half of transforms.json to hold the right (fast) frames"
+    return names
+
+def homography_translation(matrix):
+    """Length in pixels of the homography's translation (H normalised by H[2,2]); None for no transform."""
+    H = np.asarray(matrix, dtype=np.float64)
+    if not np.any(H) or abs(H[2, 2]) < 1e-12:
+        return None
+    H = H / H[2, 2]
+    return float(np.hypot(H[0, 2], H[1, 2]))
+
 def copy_images(src_folder, dest_folder):
     os.makedirs(dest_folder, exist_ok=True)
 
@@ -304,23 +338,49 @@ if __name__ == '__main__':
     os.makedirs(merged_images, exist_ok=True)
 
     print("Aligning images...")
-    for i, right_name in enumerate(f for f in os.listdir(images_path_unaligned) if f.startswith("right") and f.endswith(".png")):
+    right_names = right_names_in_render_order(transfoms_json_path)
+    report_rows = []
+    for i, right_name in enumerate(right_names):
         left_rendered_image_path = os.path.join(rendered_for_alignment_path, f"{i + 1:05}.png")
         left_image = cv2.cvtColor(cv2.imread(left_rendered_image_path), cv2.COLOR_BGR2RGB)
         right_path = os.path.join(images_path_unaligned, right_name)
         right_image = cv2.cvtColor(cv2.imread(right_path), cv2.COLOR_BGR2RGB)
 
+        align_images = None
+        num_points, num_inliers = 0, 0
         try:
             align_images = AlignImages(left_image, right_image)
-            warped_image, matrix = align_images.alignImages()
-            print(f"Aligned: {right_name}")
-
+            if len(align_images.fast_contours) == 0:
+                # No light source in this fast view: nothing to align, keep it as-is.
+                status = "no_lights"
+                warped_image, matrix = right_image, np.eye(3)
+                print(f"No lights, kept unaligned: {right_name}")
+            else:
+                warped_image, matrix = align_images.alignImages()
+                status = "aligned"
+                print(f"Aligned: {right_name}")
         except Exception as e:
-            warped_image = right_image
-            matrix = np.zeros((3, 3))
-            print(f"Failed to align: {right_name}")
+            # Keep the view unaligned (identity). The original code stored a zero matrix here,
+            # which also warped the masks to all zeros and silently dropped the view from training.
+            status = "failed"
+            warped_image, matrix = right_image, np.eye(3)
+            print(f"Failed to align, kept unaligned: {right_name} ({e})")
+        if align_images is not None:
+            num_points = getattr(align_images, "num_points", 0)
+            num_inliers = getattr(align_images, "num_inliers", 0)
 
-        if args.visualize_contours:
+        translation = homography_translation(matrix) if status == "aligned" else None
+        report_rows.append({
+            "name": right_name,
+            "render": f"{i + 1:05}.png",
+            "status": status,
+            "num_fast_contours": len(align_images.fast_contours) if align_images is not None else 0,
+            "num_points": num_points,
+            "num_inliers": num_inliers,
+            "translation_px": "" if translation is None else f"{translation:.4f}",
+        })
+
+        if args.visualize_contours and align_images is not None:
             try:
                 align_images.save_contour_visualizations(contour_visualizations_path, right_name)
             except Exception as e:
@@ -354,4 +414,11 @@ if __name__ == '__main__':
         merged_after_path = os.path.join(merged_images, right_name).replace(".png", "_after.png")
         cv2.imwrite(merged_after_path, cv2.cvtColor(merged_after_masked_image, cv2.COLOR_RGB2BGR))
 
+    report_path = os.path.join(args.input_dir, 'alignment_report.csv')
+    with open(report_path, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=list(report_rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(report_rows)
+    counts = {k: sum(r["status"] == k for r in report_rows) for k in ("aligned", "no_lights", "failed")}
+    print(f"Report written to {report_path}: {counts}")
     print("All done :D")
