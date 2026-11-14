@@ -3,10 +3,14 @@
 Run after align_fast_to_well.py, which writes the warped right views to images/ and masks/,
 keeps the originals in images_unaligned/ and masks_unaligned/, and writes alignment_report.csv.
 
-A view is flagged as a bad alignment when its homography translation is a statistical outlier:
-    translation > median + k * sigma_MAD,  sigma_MAD = 1.4826 * MAD
-computed over the successfully aligned views of this scene (or pass --threshold_px to use a
-threshold computed elsewhere, e.g. pooled over all scenes).
+A view is flagged as a bad alignment (default --flag center) when its homography is
+  - degenerate: |det of the top-left 2x2| < 0.5 or > 2 (includes reflections, det < 0), or a
+    projective weight w <= 0 at the image centre or a corner; or
+  - non-degenerate but moves the image centre by more than median + k * sigma_MAD
+    (sigma_MAD = 1.4826 * MAD), computed over the non-degenerate views of this scene
+    (or pass --threshold_px to use a fixed / pooled threshold in pixels).
+--flag translation reproduces the first version: |(H02, H12)| above median + k * sigma_MAD.
+That measure is the motion of the image corner, so small rotations/scales inflate it; avoid it.
 
 Policies for flagged views:
     warp_all           keep the warped view (same data as align_fast_to_well.py's output)
@@ -39,6 +43,25 @@ def mad_threshold(values, k):
     return float(median + k * sigma), float(median), float(sigma)
 
 
+def load_homographies(input_dir):
+    with open(os.path.join(input_dir, "alignment_matrices.json")) as f:
+        return {item["name"]: np.asarray(item["matrix"], dtype=np.float64) for item in json.load(f)["matrices"]}
+
+
+def homography_stats(H, width, height):
+    """Returns (degenerate, centre displacement in px, det of the 2x2)."""
+    H = H / H[2, 2]
+    det = float(np.linalg.det(H[:2, :2]))
+    pts = np.array([[width / 2, height / 2, 1], [0, 0, 1], [width, 0, 1], [0, height, 1], [width, height, 1]], dtype=np.float64)
+    mapped = pts @ H.T
+    w = mapped[:, 2]
+    degenerate = (abs(det) < 0.5) or (abs(det) > 2.0) or bool(np.any(w <= 1e-9))
+    if w[0] <= 1e-9:
+        return True, float("inf"), det
+    centre = mapped[0, :2] / w[0]
+    return degenerate, float(np.hypot(centre[0] - width / 2, centre[1] - height / 2)), det
+
+
 def link(src, dst):
     if os.path.lexists(dst):
         os.remove(dst)
@@ -59,6 +82,9 @@ if __name__ == "__main__":
     parser.add_argument("--policy", required=True, choices=POLICIES)
     parser.add_argument("--k", type=float, default=3.0, help="Number of sigma_MAD above the median")
     parser.add_argument("--threshold_px", type=float, default=None, help="Use this threshold instead of computing it from the scene")
+    parser.add_argument("--flag", choices=("center", "translation"), default="center",
+                        help="center: degenerate H or centre-displacement outlier (default). translation: old |(H02,H12)| rule")
+    parser.add_argument("--image_size", type=int, nargs=2, default=(960, 960), metavar=("W", "H"))
     args = parser.parse_args()
 
     input_dir = os.path.abspath(args.input_dir)
@@ -72,13 +98,25 @@ if __name__ == "__main__":
     with open(os.path.join(input_dir, "alignment_report.csv")) as f:
         rows = list(csv.DictReader(f))
     aligned = [r for r in rows if r["status"] == "aligned" and r["translation_px"] != ""]
-    translations = [float(r["translation_px"]) for r in aligned]
-
-    if args.threshold_px is not None:
-        threshold, median, sigma = args.threshold_px, None, None
+    num_degenerate = None
+    if args.flag == "translation":
+        translations = [float(r["translation_px"]) for r in aligned]
+        if args.threshold_px is not None:
+            threshold, median, sigma = args.threshold_px, None, None
+        else:
+            threshold, median, sigma = mad_threshold(translations, args.k)
+        flagged = sorted(r["name"] for r in aligned if float(r["translation_px"]) > threshold)
     else:
-        threshold, median, sigma = mad_threshold(translations, args.k)
-    flagged = sorted(r["name"] for r in aligned if float(r["translation_px"]) > threshold)
+        homographies = load_homographies(input_dir)
+        stats = {r["name"]: homography_stats(homographies[r["name"]], *args.image_size) for r in aligned}
+        degenerate = [n for n, (deg, _, _) in stats.items() if deg]
+        centres = {n: c for n, (deg, c, _) in stats.items() if not deg}
+        if args.threshold_px is not None:
+            threshold, median, sigma = args.threshold_px, None, None
+        else:
+            threshold, median, sigma = mad_threshold(list(centres.values()), args.k)
+        num_degenerate = len(degenerate)
+        flagged = sorted(set(degenerate) | {n for n, c in centres.items() if c > threshold})
 
     # Lightweight copy: symlink every top-level entry except images/ and masks/.
     os.makedirs(output_dir)
@@ -91,7 +129,6 @@ if __name__ == "__main__":
         for entry in os.listdir(os.path.join(input_dir, folder)):
             link(os.path.join(input_dir, folder, entry), os.path.join(output_dir, folder, entry))
 
-    flagged_set = set(flagged)
     if args.policy != "warp_all":
         for name in flagged:
             mask_names = [name, name.replace(".png", "_saturation_mask.png")]
@@ -105,6 +142,8 @@ if __name__ == "__main__":
 
     summary = {
         "policy": args.policy,
+        "flag": args.flag,
+        "num_degenerate": num_degenerate,
         "input_dir": input_dir,
         "k": args.k,
         "threshold_px": threshold,
