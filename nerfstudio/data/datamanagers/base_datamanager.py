@@ -327,6 +327,9 @@ class VanillaDataManagerConfig(DataManagerConfig):
     train_num_times_to_repeat_images: int = -1
     """When not training on all images, number of iterations before picking new
     images. If -1, never pick new images."""
+    train_cycle_all_images: bool = False
+    """When resampling (train_num_times_to_repeat_images > 0), walk through a shuffled
+    permutation of all training images so every image is used before any repeats."""
     eval_num_rays_per_batch: int = 1024
     """Number of rays per batch to use per eval iteration."""
     eval_num_images_to_sample_from: int = -1
@@ -486,6 +489,8 @@ class VanillaDataManager(DataManager, Generic[TDataset]):
             collate_fn=self.config.collate_fn,
             exclude_batch_keys_from_device=self.exclude_batch_keys_from_device,
             compact_images=self.config.compact_image_cache,
+            cycle_all_images=self.config.train_cycle_all_images,
+            before_resample=lambda: self.train_pixel_sampler.reset_image_cache(),
         )
         self.iter_train_image_dataloader = iter(self.train_image_dataloader)
         self.train_pixel_sampler = self._get_pixel_sampler(self.train_dataset, self.config.train_num_rays_per_batch)

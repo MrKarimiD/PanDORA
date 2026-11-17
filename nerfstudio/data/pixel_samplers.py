@@ -77,11 +77,27 @@ class PixelSampler:
     def __init__(self, config: PixelSamplerConfig, **kwargs) -> None:
         self.kwargs = kwargs
         self.config = config
+        self.well_image_batch = {}
+        self.fast_image_batch = {}
         # Possibly override some values if they are present in the kwargs dictionary
         self.config.num_rays_per_batch = self.kwargs.get("num_rays_per_batch", self.config.num_rays_per_batch)
         self.config.keep_full_image = self.kwargs.get("keep_full_image", self.config.keep_full_image)
         self.config.is_equirectangular = self.kwargs.get("is_equirectangular", self.config.is_equirectangular)
         self.set_num_rays_per_batch(self.config.num_rays_per_batch)
+
+    def reset_image_cache(self) -> None:
+        """Forget the cached well/fast splits and mask indices of the current image batch.
+
+        They are computed once from the first image batch and reused. When the dataloader
+        resamples a new set of images (train_num_times_to_repeat_images), they must be
+        rebuilt, otherwise sampling keeps using the old images. Called before the new images
+        are loaded so the old copies are freed first."""
+        self.well_image_batch = {}
+        self.fast_image_batch = {}
+        for name in ("well_exposed", "fast_exposed", "light_sources"):
+            setattr(self, f"is_{name}_computed", False)
+            if f"{name}_indices" in self.__dict__:
+                delattr(self, f"{name}_indices")
 
     def set_num_rays_per_batch(self, num_rays_per_batch: int):
         """Set the number of rays to sample per batch.

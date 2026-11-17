@@ -57,6 +57,8 @@ class CacheDataloader(DataLoader):
         collate_fn: Callable[[Any], Any] = nerfstudio_collate,
         exclude_batch_keys_from_device: Optional[List[str]] = None,
         compact_images: bool = False,
+        cycle_all_images: bool = False,
+        before_resample: Optional[Callable[[], None]] = None,
         **kwargs,
     ):
         if exclude_batch_keys_from_device is None:
@@ -68,6 +70,13 @@ class CacheDataloader(DataLoader):
 
         super().__init__(dataset=dataset, **kwargs)  # This will set self.dataset
         self.num_times_to_repeat_images = num_times_to_repeat_images
+        # cycle_all_images: draw images from a shuffled permutation of the whole dataset, so
+        # successive resamples cover every image before any is repeated (instead of
+        # independent random subsets). before_resample: called before a new set is loaded.
+        self.cycle_all_images = cycle_all_images
+        self.before_resample = before_resample
+        self._perm: List[int] = []
+        self.num_resamples = 0
         self.cache_all_images = (num_images_to_sample_from == -1) or (num_images_to_sample_from >= len(self.dataset))
         self.num_images_to_sample_from = len(self.dataset) if self.cache_all_images else num_images_to_sample_from
         self.device = device
@@ -103,7 +112,20 @@ class CacheDataloader(DataLoader):
         """Returns a list of batches from the dataset attribute."""
 
         assert isinstance(self.dataset, Sized)
-        indices = random.sample(range(len(self.dataset)), k=self.num_images_to_sample_from)
+        if self.cycle_all_images and not self.cache_all_images:
+            indices = []
+            while len(indices) < self.num_images_to_sample_from:
+                if not self._perm:
+                    self._perm = list(range(len(self.dataset)))
+                    random.shuffle(self._perm)
+                need = self.num_images_to_sample_from - len(indices)
+                chunk, self._perm = self._perm[:need], self._perm[need:]
+                chosen = set(indices)
+                indices += [i for i in chunk if i not in chosen]
+                # images already in this set wait for the next one
+                self._perm += [i for i in chunk if i in chosen]
+        else:
+            indices = random.sample(range(len(self.dataset)), k=self.num_images_to_sample_from)
         batch_list = []
         results = []
 
@@ -151,6 +173,17 @@ class CacheDataloader(DataLoader):
             ):
                 # trigger a reset
                 self.num_repeated = 0
+                if not self.first_time:
+                    # Free the previous images (and anything derived from them) before loading
+                    # the next set, so peak RAM stays at one cache instead of two.
+                    self.cached_collated_batch = None
+                    collated_batch = None
+                    if self.before_resample is not None:
+                        self.before_resample()
+                    import gc
+                    gc.collect()
+                    self.num_resamples += 1
+                    CONSOLE.print(f"Resampling training images (#{self.num_resamples}).")
                 collated_batch = self._get_collated_batch()
                 # possibly save a cached item
                 self.cached_collated_batch = collated_batch if self.num_times_to_repeat_images != 0 else None
