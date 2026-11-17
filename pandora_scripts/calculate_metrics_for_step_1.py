@@ -83,11 +83,15 @@ if __name__ == '__main__':
     # ], check=True)
 
     # 3. Combine both well and fast exposed panos:
+    # Same linearization as the stage-2 metrics (combine.py), with the well-exposed renders only.
+    # linearize_jpgs.py looked for *.png (ns-render writes .jpg) and wrote no .exr files.
     print("Linearizing the frames...")
     subprocess.run([
-        "python", "pandora_scripts/linearize_jpgs.py",
-        "--data_dir", renders_well + "/",
+        "python", "pandora_scripts/combine.py",
+        "--well_dir", renders_well + "/",
         "--out_dir", renders_lin + "/",
+        "--experiment_location", os.path.join(args.input_dir, "data") + "/",
+        "--do_linearization"
     ], check=True)
 
     # 4. Rename the render files:
