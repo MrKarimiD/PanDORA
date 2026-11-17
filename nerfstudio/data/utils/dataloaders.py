@@ -182,6 +182,13 @@ class CacheDataloader(DataLoader):
                         self.before_resample()
                     import gc
                     gc.collect()
+                    # Hand freed heap memory back to the OS. Without this, RAM grew by 3-6 GB per
+                    # resample (glibc keeps the freed image buffers in its arenas) until OOM.
+                    try:
+                        import ctypes
+                        ctypes.CDLL("libc.so.6").malloc_trim(0)
+                    except (OSError, AttributeError):
+                        pass
                     self.num_resamples += 1
                     CONSOLE.print(f"Resampling training images (#{self.num_resamples}).")
                 collated_batch = self._get_collated_batch()
