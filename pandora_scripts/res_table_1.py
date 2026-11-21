@@ -79,6 +79,17 @@ def psnr(original, compressed):
     return psnr
 
 
+def psnr_fixed(original, compressed):
+    """Same as psnr() (gamma 2.4 tonemap, 0-255 scale, max 255), but the squared error is computed
+    in float64. psnr() squares uint8 differences, which wrap around modulo 256."""
+    original_tone_mapped = tonemap(original).astype(np.float64)
+    compressed_tone_mapped = tonemap(compressed).astype(np.float64)
+    rmse = np.sqrt(np.mean((original_tone_mapped - compressed_tone_mapped) ** 2))
+    if rmse == 0:
+        return 100
+    return 20 * log10(255.0 / rmse)
+
+
 def remove_nan_and_sort(x):
     x = np.array(x)
     x = x[~np.isnan(x)]
@@ -92,12 +103,14 @@ def calculate_metrics(results_dataset_roots, gt_dataset_root, output_folder, dat
     si_mse = {}
     angular = {}
     psnr_error = {}
+    psnr_fixed_error = {}
     metrics = {}
     for key in dataset_names:
         mse[key] = []
         si_mse[key] = []
         angular[key] = []
         psnr_error[key] = []
+        psnr_fixed_error[key] = []
         metrics[key] = {}
 
     gt_dataset_files = sorted([os.path.join(gt_dataset_root, f) for f in os.listdir(gt_dataset_root) if f.endswith('.exr')])
@@ -123,19 +136,22 @@ def calculate_metrics(results_dataset_roots, gt_dataset_root, output_folder, dat
             scale_invariant_mse_result = si_wrmse(gt_dataset_img_exr, result_dataset_img_exr, mask)
             angular_result = angular_error(gt_dataset_img_exr, result_dataset_img_exr, mask)
             psnr_result = psnr(gt_dataset_img_exr_for_PSNR, result_dataset_img_exr_for_PSNR)
+            psnr_fixed_result = psnr_fixed(gt_dataset_img_exr_for_PSNR, result_dataset_img_exr_for_PSNR)
             
             key = gt_dataset_file.split('/')[-1]
             metrics[dataset_name][key] = {
                 'mse': str(mse_result),
                 'si_rmse': str(scale_invariant_mse_result),
                 'angular': str(angular_result),
-                'psnr': str(psnr_result)
+                'psnr': str(psnr_result),
+                'psnr_fixed': str(psnr_fixed_result)
             }
             
             mse[dataset_name].append(mse_result)
             si_mse[dataset_name].append(scale_invariant_mse_result)
             angular[dataset_name].append(angular_result)
             psnr_error[dataset_name].append(psnr_result)
+            psnr_fixed_error[dataset_name].append(psnr_fixed_result)
             si_mse[dataset_name].append(scale_invariant_mse_result)
 
         mse[dataset_name] = remove_nan_and_sort(mse[dataset_name]) 
@@ -144,12 +160,14 @@ def calculate_metrics(results_dataset_roots, gt_dataset_root, output_folder, dat
         si_mse_ours = np.mean(si_mse[dataset_name])
         angular_ours = np.mean(angular[dataset_name])
         psnr_ours = np.mean(psnr_error[dataset_name])
+        psnr_fixed_ours = np.mean(psnr_fixed_error[dataset_name])
         
         metrics[dataset_name]['mean'] = {
             'mse': str(mse_ours),
             'si_rmse': str(si_mse_ours),
             'angular': str(angular_ours),
-            'psnr': str(psnr_ours)
+            'psnr': str(psnr_ours),
+            'psnr_fixed': str(psnr_fixed_ours)
         }
 
         output_addr = output_folder + dataset_name + '_results.json'
